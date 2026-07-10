@@ -37,6 +37,24 @@ const isEncryptedPayload = (value) => {
   }
 };
 
+// Detecta tanto el formato correcto {"iv":"...","cipherText":"..."} como el
+// formato corrupto heredado {"value":"{\"iv\":\"...\",\"cipherText\":\"...\"}"}.
+const isEncryptedOrCorruptPayload = (value) => {
+  if (typeof value !== 'string') return false;
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object') return false;
+    if (parsed.iv && parsed.cipherText) return true;
+    if (parsed.value && typeof parsed.value === 'string') {
+      const inner = JSON.parse(parsed.value);
+      return Boolean(inner && typeof inner === 'object' && inner.iv && inner.cipherText);
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 const callEdgeFunction = async (action, payload) => {
   const { data, error } = await supabase.functions.invoke(edgeFunctionName, {
     body: { action, ...payload },
@@ -58,11 +76,12 @@ export const encryptValue = async (value) => {
     return value;
   }
 
-  return callEdgeFunction('encrypt', { value });
+  const result = await callEdgeFunction('encrypt', { value });
+  return result.value;
 };
 
 export const decryptValue = async (value, expectedType = 'string') => {
-  if (typeof value !== 'string' || !value.startsWith('{')) {
+  if (typeof value !== 'string' || !isEncryptedOrCorruptPayload(value)) {
     return value;
   }
 
