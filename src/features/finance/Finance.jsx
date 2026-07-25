@@ -325,6 +325,7 @@ function IncomeTab() {
     deposits, wiseBalance, currentWithdrawals,
     addDeposit, deleteDeposit,
     addWithdrawal, updateWithdrawal, deleteWithdrawal,
+    copyFromPreviousMonth,
     budgets, currentIndex, setCurrentIndex, MONTHS_LONG,
   } = useMonthlyTracker();
   const { user } = useUser();
@@ -444,6 +445,16 @@ function IncomeTab() {
       {/* === MONTH PICKER === */}
       <div className="flex justify-center">
         <DatePicker selectedDate={pickerDate} onChange={handleMonthChange} monthOnly={true} />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => copyFromPreviousMonth()}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[var(--bg-input)] text-[var(--text-muted)] border border-[var(--border-card)] rounded-lg hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all"
+        >
+          <Database size={12} />
+          Copiar del mes anterior · neutro
+        </button>
       </div>
 
       {/* === WISE === */}
