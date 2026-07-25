@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { CheckCircle } from 'lucide-react';
 
 export default function Auth() {
   const { login, register, error: authError, loading } = useAuth();
   const { isDark } = useTheme();
+  const { t } = useLanguage();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({ email: '', password: '', name: '' });
   const [localError, setLocalError] = useState(null);
@@ -19,10 +21,10 @@ export default function Auth() {
     try {
       if (isLogin) {
         await login(formData.email, formData.password);
-        setSuccessMessage('¡Sesión iniciada exitosamente!');
+        setSuccessMessage(t('auth.sessionStarted'));
       } else {
         await register(formData.email, formData.password, formData.name);
-        setSuccessMessage('¡Cuenta creada exitosamente!');
+        setSuccessMessage(t('auth.accountCreated'));
       }
       
       setTimeout(() => {
@@ -43,7 +45,7 @@ export default function Auth() {
             Evolux
           </h1>
           <p className={`${isDark ? 'text-white/60' : 'text-[#6b7280]'}`}>
-            {isLogin ? 'Welcome back' : 'Create your account'}
+            {isLogin ? t('auth.welcomeBack') : t('auth.createAccount')}
           </p>
         </div>
 
@@ -51,7 +53,7 @@ export default function Auth() {
           {!isLogin && (
             <div>
               <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-white/80' : 'text-[#1a1a2e]/80'}`}>
-                Name
+                {t('auth.name')}
               </label>
               <input
                 type="text"
@@ -62,7 +64,7 @@ export default function Auth() {
                     ? 'bg-white/5 text-white placeholder:text-white/30 border border-white/10' 
                     : 'bg-black/4 text-[#1a1a2e] placeholder:text-[#6b7280] border border-black/8'
                 }`}
-                placeholder="Your name"
+                placeholder={t('auth.yourName')}
                 required={!isLogin}
               />
             </div>
@@ -70,7 +72,7 @@ export default function Auth() {
 
           <div>
             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-white/80' : 'text-[#1a1a2e]/80'}`}>
-              Email
+              {t('auth.email')}
             </label>
             <input
               type="email"
@@ -81,14 +83,14 @@ export default function Auth() {
                   ? 'bg-white/5 text-white placeholder:text-white/30 border border-white/10' 
                   : 'bg-black/4 text-[#1a1a2e] placeholder:text-[#6b7280] border border-black/8'
               }`}
-              placeholder="you@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               required
             />
           </div>
 
           <div>
             <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-white/80' : 'text-[#1a1a2e]/80'}`}>
-              Password
+              {t('auth.password')}
             </label>
             <input
               type="password"
@@ -99,7 +101,7 @@ export default function Auth() {
                   ? 'bg-white/5 text-white placeholder:text-white/30 border border-white/10' 
                   : 'bg-black/4 text-[#1a1a2e] placeholder:text-[#6b7280] border border-black/8'
               }`}
-              placeholder="••••••••"
+              placeholder={t('auth.passwordPlaceholder')}
               required
             />
           </div>
@@ -129,16 +131,16 @@ export default function Auth() {
             {loading ? (
               <>
                 <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
-                Procesando...
+                {t('auth.processing')}
               </>
             ) : (
-              isLogin ? 'Sign In' : 'Sign Up'
+              isLogin ? t('auth.signIn') : t('auth.signUp')
             )}
           </button>
         </form>
 
         <p className={`mt-6 text-center text-sm ${isDark ? 'text-white/40' : 'text-[#6b7280]'}`}>
-          {isLogin ? "Don't have an account?" : 'Already have an account?'}
+          {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}
           <button
             onClick={() => {
               setIsLogin(!isLogin);
@@ -147,7 +149,7 @@ export default function Auth() {
             }}
             className="text-acid font-semibold ml-1 hover:underline"
           >
-            {isLogin ? 'Sign Up' : 'Sign In'}
+            {isLogin ? t('auth.signUp') : t('auth.signIn')}
           </button>
         </p>
       </div>

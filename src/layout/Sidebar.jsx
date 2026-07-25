@@ -16,21 +16,22 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useUser } from '../context/UserContext';
 import { useAuth } from '../hooks/useAuth';
-
-const MENU_ITEMS = [
-    { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'wallet', label: 'Billetera', icon: Wallet },
-    { id: 'goals', label: 'Metas', icon: Target },
-    { id: 'fitness', label: 'Hábitos', icon: Dumbbell },
-    { id: 'tasks', label: 'Tareas', icon: CheckSquare },
-    { id: 'analytics', label: 'Análisis', icon: PieChart },
-];
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Sidebar({ currentTab, onTabChange }) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const { accentColor, isDark, toggleMode } = useTheme();
     const { user } = useUser();
     const { logout } = useAuth();
+    const { t } = useLanguage();
+
+    const MENU_ITEMS = [
+        { id: 'home', label: t('sidebar.dashboard'), icon: LayoutDashboard },
+        { id: 'wallet', label: t('sidebar.finanzas'), icon: Wallet },
+        { id: 'goals', label: t('sidebar.metas'), icon: Target },
+        { id: 'fitness', label: t('sidebar.habitos'), icon: Dumbbell },
+        { id: 'tasks', label: t('sidebar.tareas'), icon: CheckSquare },
+    ];
 
     const handleLogout = async () => {
         try {
@@ -78,7 +79,7 @@ export default function Sidebar({ currentTab, onTabChange }) {
                                 className="overflow-hidden whitespace-nowrap ml-3"
                             >
                                 <h3 className="font-medium text-sm transition-colors" style={{ color: 'var(--text-primary)' }}>{user.name}</h3>
-                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Ver Perfil</p>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('sidebar.verPerfil')}</p>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -134,7 +135,7 @@ export default function Sidebar({ currentTab, onTabChange }) {
                         className={`flex items-center h-12 rounded-xl transition-all relative group shrink-0 hover:bg-white/5 text-text-muted hover:text-white
                             ${isCollapsed ? 'justify-center w-12 mx-auto' : 'w-full px-2'}
                         `}
-                        title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                        title={isDark ? t('sidebar.modoClaro') : t('sidebar.modoOscuro')}
                     >
                         <div className={`w-10 h-10 flex items-center justify-center shrink-0 z-10 relative`}>
                             {isDark ? <Sun size={20} /> : <Moon size={20} />}
@@ -148,7 +149,7 @@ export default function Sidebar({ currentTab, onTabChange }) {
                                     transition={{ duration: 0.2 }}
                                     className="text-sm font-medium whitespace-nowrap z-10 ml-3 text-text-muted group-hover:text-white"
                                 >
-                                    {isDark ? 'Modo Claro' : 'Modo Oscuro'}
+                                    {isDark ? t('sidebar.modoClaro') : t('sidebar.modoOscuro')}
                                 </motion.span>
                             )}
                         </AnimatePresence>
@@ -162,7 +163,7 @@ export default function Sidebar({ currentTab, onTabChange }) {
                         className={`flex items-center h-12 rounded-xl transition-all relative group shrink-0 hover:bg-white/5 text-red-400 hover:text-red-300
                             ${isCollapsed ? 'justify-center w-12 mx-auto' : 'w-full px-2'}
                         `}
-                        title="Cerrar sesión"
+                        title={t('sidebar.cerrarSesion')}
                     >
                         <div className={`w-10 h-10 flex items-center justify-center shrink-0 z-10 relative`}>
                             <LogOut size={20} />
@@ -176,7 +177,7 @@ export default function Sidebar({ currentTab, onTabChange }) {
                                     transition={{ duration: 0.2 }}
                                     className="text-sm font-medium whitespace-nowrap z-10 ml-3"
                                 >
-                                    Cerrar Sesión
+                                    {t('sidebar.cerrarSesion')}
                                 </motion.span>
                             )}
                         </AnimatePresence>
@@ -203,7 +204,7 @@ export default function Sidebar({ currentTab, onTabChange }) {
                                     transition={{ duration: 0.2 }}
                                     className="text-sm font-medium whitespace-nowrap z-10 ml-3 text-text-muted group-hover:text-white"
                                 >
-                                    Colapsar
+                                    {t('sidebar.colapsar')}
                                 </motion.span>
                             )}
                         </AnimatePresence>

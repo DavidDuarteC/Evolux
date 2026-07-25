@@ -23,6 +23,29 @@ const SENSITIVE_FIELDS = {
     amount: 'number',
     note: 'string',
   },
+  monthly_budgets: {
+    salary_eur: 'number',
+    wise_fee_eur: 'number',
+    exchange_rate: 'number',
+    manual_income_cop: 'number',
+  },
+  monthly_fixed_expenses: {
+    label: 'string',
+    amount: 'number',
+  },
+  monthly_variable_expenses: {
+    label: 'string',
+    amount: 'number',
+  },
+  wise_deposits: {
+    amount_eur: 'number',
+  },
+  wise_withdrawals: {
+    amount_eur: 'number',
+    exchange_rate: 'number',
+    fee_eur: 'number',
+    cop_received: 'number',
+  },
 };
 
 const edgeFunctionName = 'finance-crypto';

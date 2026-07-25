@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTasks } from './context/TaskContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import PageHeader from '../../shared/components/PageHeader';
 import TaskCard from './components/TaskCard';
 import TaskModal from './components/TaskModal';
@@ -11,6 +12,7 @@ import { toast } from 'sonner';
 export default function Tasks() {
     const { spaces, categories, tasks, moveTask, addCategory, updateCategory, deleteCategory, addSpace, updateSpace, deleteSpace } = useTasks();
     const { isDark } = useTheme();
+    const { t } = useLanguage();
     const tabBg = isDark ? '#111' : '#f5f5f7';
     const tabBgAlpha = isDark ? '#111111cc' : '#f5f5f7cc';
 
@@ -112,7 +114,7 @@ export default function Tasks() {
                 ? `Esta categoría tiene ${catTasks.length} tarea(s) que serán eliminadas.`
                 : 'Esta acción no se puede deshacer.',
             action: {
-                label: 'Eliminar',
+                label: t('common.eliminar'),
                 onClick: () => {
                     deleteCategory(categoryId);
                     toast.success('Categoría eliminada');
@@ -141,7 +143,7 @@ export default function Tasks() {
                 ? `Este espacio tiene ${spaceTasks.length} tarea(s). Todas serán eliminadas.`
                 : 'Esta acción no se puede deshacer.',
             action: {
-                label: 'Eliminar',
+                label: t('common.eliminar'),
                 onClick: () => {
                     deleteSpace(spaceId);
                     if (activeSpaceId === spaceId) {
@@ -192,7 +194,7 @@ export default function Tasks() {
             {/* Title + acciones alineadas (consistente con las otras páginas) */}
             <div className="shrink-0 mb-5">
                 <PageHeader
-                    title="Mis Tareas"
+                    title={t('app.tareas')}
                     subtitle="Mantén el control de tus actividades."
                     right={
                         <div className="flex items-center gap-3">

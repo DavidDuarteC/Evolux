@@ -6,6 +6,7 @@ import DatePicker from '../../shared/components/DatePicker';
 import HabitStatCard from '../../shared/components/HabitStatCard';
 import PageHeader from '../../shared/components/PageHeader';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
 import { getHabits, saveHabits, createHabit, updateHabit as dbUpdateHabit, deleteHabit as dbDeleteHabit } from './services/habits';
 
@@ -29,6 +30,7 @@ const FREQUENCY_OPTIONS = {
 
 export default function Fitness() {
     const { isDark } = useTheme();
+    const { t } = useLanguage();
     const { userId, isAuthenticated } = useAuth();
     const [habits, setHabits] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -514,7 +516,7 @@ export default function Fitness() {
         <div className="space-y-8 animate-fade-in pb-20 min-w-0">
             {/* Header con selector de mes alineado (consistente con las otras páginas) */}
             <PageHeader
-                title="Mis Hábitos"
+                title={t('app.habitos')}
                 subtitle="Construye tus rachas, día a día."
                 right={<DatePicker selectedDate={currentDate} onChange={setCurrentDate} monthOnly={true} />}
             />

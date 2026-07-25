@@ -3,8 +3,10 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './context/ThemeContext';
 import { UserProvider } from './context/UserContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { FinanceProvider } from './features/finance/context/FinanceContext';
 import { TaskProvider } from './features/tasks/context/TaskContext';
+import { MonthlyTrackerProvider } from './features/monthlyTracker/context/MonthlyTrackerContext';
 import Auth from './features/auth/Auth';
 import MainLayout from './layout/MainLayout';
 import Dashboard from './features/dashboard/Dashboard';
@@ -12,7 +14,6 @@ import Goals from './features/goals/Goals';
 import Fitness from './features/fitness/Fitness';
 import Tasks from './features/tasks/Tasks';
 import Finance from './features/finance/Finance';
-import Analytics from './features/analytics/Analytics';
 import Profile from './features/profile/Profile';
 import { useEffect } from 'react';
 
@@ -51,7 +52,6 @@ function AppRoutes() {
       case 'goals': return <Goals />;
       case 'fitness': return <Fitness />;
       case 'tasks': return <Tasks />;
-      case 'analytics': return <Analytics />;
       case 'profile': return <Profile />;
       default: return <Dashboard />;
     }
@@ -68,11 +68,15 @@ function App() {
   return (
     <ThemeProvider>
       <UserProvider>
-        <FinanceProvider>
-          <TaskProvider>
-            <AppRoutes />
-          </TaskProvider>
-        </FinanceProvider>
+        <LanguageProvider>
+          <FinanceProvider>
+            <TaskProvider>
+              <MonthlyTrackerProvider>
+                <AppRoutes />
+              </MonthlyTrackerProvider>
+            </TaskProvider>
+          </FinanceProvider>
+        </LanguageProvider>
       </UserProvider>
     </ThemeProvider>
   );
