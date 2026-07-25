@@ -12,8 +12,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Push to forks
+      - name: Verify token identity
         env:
+          GH_TOKEN: ${{ secrets.FORK_SYNC_PAT }}
+        run: |
+          echo "Token length: ${#GH_TOKEN}"
+          echo "Authenticated as:"
+          curl -s -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/user" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('login', d.get('message','unknown')))"
+
+      - name: Push to forks via API
+        env:
+          GH_TOKEN: ${{ secrets.FORK_SYNC_PAT }}
           FORKS: ${{ vars.FORK_REPOS }}
         run: |
           if [ -z "$FORKS" ]; then
@@ -22,9 +32,25 @@ jobs:
           fi
 
           BRANCH="${{ github.ref_name }}"
+          SHA=$(git rev-parse "$BRANCH")
+
           for fork in $FORKS; do
-            echo "→ Syncing $fork ($BRANCH) ..."
-            git push "https://${{ secrets.FORK_SYNC_PAT }}@github.com/${fork}.git" \
-              "refs/heads/${BRANCH}:refs/heads/${BRANCH}" --force-with-lease
+            echo "→ Syncing $fork ($BRANCH @ $SHA) ..."
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${fork}/git/refs/heads/${BRANCH}" \
+              -d "{\"sha\":\"${SHA}\",\"force\":true}")
+            if [ "$HTTP" != "200" ]; then
+              echo "  PATCH returned $HTTP, trying POST..."
+              curl -s -X POST \
+                -H "Authorization: token ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/${fork}/git/refs" \
+                -d "{\"ref\":\"refs/heads/${BRANCH}\",\"sha\":\"${SHA}\"}" \
+                -w "\n  POST HTTP %{http_code}"
+            fi
+            echo ""
             echo "✔ $fork synced"
+          done
           done
