@@ -14,21 +14,17 @@ jobs:
 
       - name: Push to forks
         env:
-          GH_TOKEN: ${{ secrets.FORK_SYNC_PAT }}
           FORKS: ${{ vars.FORK_REPOS }}
         run: |
           if [ -z "$FORKS" ]; then
             echo "No forks configured."
-            echo "Set FORK_REPOS as a repository variable (Settings → Variables)."
-            echo "Format: friend1/repo friend2/repo"
             exit 0
           fi
 
           BRANCH="${{ github.ref_name }}"
           for fork in $FORKS; do
             echo "→ Syncing $fork ($BRANCH) ..."
-            git remote add fork "https://${GH_TOKEN}@github.com/${fork}.git"
-            git push fork "refs/heads/${BRANCH}:refs/heads/${BRANCH}" --force-with-lease
-            git remote remove fork
+            git push "https://${{ secrets.FORK_SYNC_PAT }}@github.com/${fork}.git" \
+              "refs/heads/${BRANCH}:refs/heads/${BRANCH}" --force-with-lease
             echo "✔ $fork synced"
           done
