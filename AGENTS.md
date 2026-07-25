@@ -12,14 +12,16 @@ npm run dev       # Vite dev server
 npm run build     # production build → dist/
 npm run lint      # ESLint (flat config, eslint.config.js)
 npm run preview   # Vite preview of built output
+npm test          # Vitest (run once) — verifies Supabase tables + calculations
+npm run test:watch # Vitest in watch mode
 ```
-- No `typecheck` (no TS). No test runner configured. No CI.
+- No `typecheck` (no TS). No CI.
 
 ## Architecture
 
 ### Entry & Routing
 - `src/main.jsx` → mounts React tree with `BrowserRouter > AuthProvider > App`; `AuthProvider` imported from `features/auth/context/`
-- `src/App.jsx` → wraps app in `ThemeProvider > UserProvider > FinanceProvider > TaskProvider > AppRoutes`
+- `src/App.jsx` → wraps app in `ThemeProvider > UserProvider > FinanceProvider > TaskProvider > MonthlyTrackerProvider > AppRoutes`
 - Auth guard: if not authenticated, redirects to `/auth`; shows spinner while loading
 - Authenticated users get tab-based navigation (`currentTab` switch in AppRoutes) inside `MainLayout` + `Sidebar`
 - All feature modules and contexts imported from `src/features/{feature}/`, not `src/modules/` or `src/context/`
@@ -29,17 +31,17 @@ npm run preview   # Vite preview of built output
 2. **Google Apps Script** — secondary/legacy. `src/shared/services/api.js` uses `no-cors` mode and always returns `{ success: true }` (opaque response). Individual wrappers in old `src/services/` were deleted — only `api.js` is kept.
 
 ### State Management
-- React Context for everything: `AuthContext`, `FinanceContext`, `TaskContext`, `ThemeContext`, `UserContext`, `ToastContext`
-- Feature-specific contexts (`AuthContext`, `FinanceContext`, `TaskContext`) live in `src/features/{feature}/context/`
+- React Context for everything: `AuthContext`, `FinanceContext`, `TaskContext`, `MonthlyTrackerContext`, `ThemeContext`, `UserContext`, `ToastContext`
+- Feature-specific contexts (`AuthContext`, `FinanceContext`, `TaskContext`, `MonthlyTrackerContext`) live in `src/features/{feature}/context/`
 - App-wide contexts (`ThemeContext`, `UserContext`, `ToastContext`) live in `src/context/`
 - `zustand` is in `package.json` but **not used** anywhere in the codebase
 
 ### Directory Map
 | Path | Purpose |
 |------|---------|
-| `src/features/*/` | Feature folders (auth, finance, tasks, goals, fitness, analytics, profile, dashboard) |
+| `src/features/*/` | Feature folders (auth, finance, monthlyTracker, tasks, goals, fitness, analytics, profile, dashboard) |
 | `src/features/*/components/` | Feature-specific UI components |
-| `src/features/*/context/` | Feature-specific React Context providers (Auth, Finance, Task) |
+| `src/features/*/context/` | Feature-specific React Context providers (Auth, Finance, Task, MonthlyTracker) |
 | `src/features/*/services/` | Feature-specific Supabase data access (one per table) |
 | `src/features/*/hooks/` | Feature-specific custom hooks |
 | `src/features/*/utils/` | Feature-specific utilities |
@@ -50,7 +52,9 @@ npm run preview   # Vite preview of built output
 | `src/layout/` | MainLayout + Sidebar |
 | `src/context/` | App-wide React Context providers (Theme, User, Toast) |
 | `src/hooks/` | Custom hooks (only `useAuth.js` — re-exports from auth feature) |
-| `sql/` | `supabase_schema.sql` — canonical DB schema with RLS policies |
+| `sql/` | `supabase_schema.sql` (canonical DB schema with RLS), `migration_monthly_tracker.sql`, `migration_wise.sql`, `migration_profiles_wise.sql`, `migration_profiles_targets.sql` |
+| `tests/` | Vitest tests — `db-tables.test.js` (Supabase table verification), `tracker-calculations.test.js` (calculation tests) |
+| `supabase/functions/` | Edge Functions — `get-wise-rate/` (fetches Wise mid-market rate + fee from Wise API, 1-min cache) |
 
 ## Key Gotchas
 
@@ -65,6 +69,18 @@ npm run preview   # Vite preview of built output
 - `FinanceContext.loadData()` auto-creates a default account named "Principal" with amount 0 if no accounts exist
 - Currency formatting uses Colombian locale: `$X.XXX` (dots as thousands separators)
 - Dates: frontend uses "Mes DD" format (e.g. "Ene 15"), database uses "YYYY-MM-DD"
+- **Finance.jsx** tabs: Ingreso (Wise deposits/withdrawals + Manual COP), Gastos (fijos/variables), Historial (Recharts), Liquidez (wallet_items). The tracker uses `MonthlyTrackerContext`, the wallet uses `wallet_items` table directly.
+- **Profile.jsx** has a Wise toggle (`profiles.use_wise`) that shows/hides the Wise section in Finance → Ingreso. When off, only Manual COP input is shown.
+- **Dashboard.jsx** is read-only (no transaction editing). Shows stats from tracker, CDT/Colchón as goals with targets (`profiles.savings_target`, `profiles.cushion_target`), accumulated progress (from saved months), sliders for `savings_pct`/`cushion_pct`, and "Guardar mes" / "Crear mes siguiente" buttons.
+
+### Monthly Tracker
+- Feature folder: `src/features/monthlyTracker/` (context + services, UI lives in `src/features/finance/Finance.jsx`)
+- Tracks monthly income (Wise EUR→COP or manual COP), fixed/variable expenses, savings/cushion percentages, and monthly history.
+- Tables: `monthly_budgets`, `monthly_fixed_expenses`, `monthly_variable_expenses`, `wise_deposits`, `wise_withdrawals` (see `sql/supabase_schema.sql`, `sql/migration_monthly_tracker.sql`, `sql/migration_wise.sql`).
+- `monthly_budgets.income_mode` can be `'wise'` (default) or `'manual'`. When `'manual'`, `manual_income_cop` is used instead of the Wise EUR→COP conversion.
+- **Wise mode with partial withdrawals**: `wise_deposits` tracks EUR arriving to Wise (global, accumulates across months). `wise_withdrawals` tracks each conversion (per month, each with its own rate and fee). COP = sum of `cop_received` from month's withdrawals. Saldo Wise = total deposits - total withdrawn (amount + fee). If no withdrawals exist, COP falls back to legacy calculation `(salary_eur - wise_fee_eur) * exchange_rate`.
+- Sensitive fields are encrypted via `src/shared/lib/crypto.js` (added `monthly_budgets`, `monthly_fixed_expenses`, `monthly_variable_expenses`, `wise_deposits`, `wise_withdrawals` to `SENSITIVE_FIELDS`).
+- All encrypted columns use `TEXT` type (not `NUMERIC`) because encryption produces JSON strings.
 
 ### Goals
 - `handleTransaction()` receives `amount` that may be a **number** (from `parseInt`) or **string** (from input). Always wrap with `String(amount).replace(...)` before parsing — see `src/features/goals/Goals.jsx:167`
@@ -82,6 +98,13 @@ npm run preview   # Vite preview of built output
 - Toggling light mode adds the `light` class to `<html>` (see `ThemeContext`)
 - All colors are CSS custom properties defined in `src/index.css`
 - Fonts loaded from Google Fonts: Poppins, Inter, Space Mono
+
+### Monthly Tracker
+- Feature folder: `src/features/monthlyTracker/`
+- Tracks EUR salary → Wise fee → COP conversion, fixed/variable expenses, savings/cushion percentages, and monthly history.
+- Tables: `monthly_budgets`, `monthly_fixed_expenses`, `monthly_variable_expenses` (see `sql/supabase_schema.sql`).
+- Sensitive fields are encrypted via `src/shared/lib/crypto.js`.
+- New tab `tracker` added to `Sidebar` and `AppRoutes`.
 
 ### Validation
 - Forms use `react-hook-form` with `@hookform/resolvers` + Zod

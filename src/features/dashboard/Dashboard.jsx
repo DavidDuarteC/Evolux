@@ -1,584 +1,513 @@
-import React, { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Wallet, Pencil, Plus, Trash2, Check, X, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Calendar, Settings } from 'lucide-react';
-import CategoryEditorModal from './CategoryEditorModal';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  TrendingUp, TrendingDown, Save, Plus,
+  CheckSquare, Dumbbell, Trophy, BarChart3,
+} from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
+} from 'recharts';
 import { useAuth } from '../../hooks/useAuth';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMonthlyTracker } from '../monthlyTracker/context/MonthlyTrackerContext';
+import { useTasks } from '../tasks/context/TaskContext';
 import { useUser } from '../../context/UserContext';
+import { useLanguage } from '../../context/LanguageContext';
 import DatePicker from '../../shared/components/DatePicker';
-import CalendarInput from '../../shared/components/CalendarInput';
+import { getGoals } from '../goals/services/goals';
+import { getHabits } from '../fitness/services/habits';
 import { toast } from 'sonner';
 
-// --- Shared Components ---
+const CHART_GREEN = '#4ade80';
+const CHART_RED = '#f87171';
+const CHART_ORANGE = '#fb923c';
+const CHART_BLUE = '#60a5fa';
+const CHART_PURPLE = '#a78bfa';
+const ACC_SAVINGS = '#1D9E75';
+const ACC_CUSHION = '#378ADD';
+const PIE_COLORS = ['#f87171', '#fb923c', '#a78bfa', '#60a5fa', '#4ade80'];
 
-// Status Bulb Component (The "Bombillo")
-const StatusBulb = ({ status, onClick, readOnly = false }) => {
+const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+const ChartTooltip = ({ active, payload, label, fmt }) => {
+  if (active && payload?.length) {
     return (
-        <button
-            onClick={readOnly ? undefined : onClick}
-            disabled={readOnly}
-            className={`w-4 h-4 rounded-full transition-all duration-300 ${status === 1 ? 'bg-green-500' : (status === 2 ? 'bg-red-500' : 'bg-zinc-700 shadow-none')} ${readOnly ? 'cursor-default' : 'cursor-pointer hover:scale-110'}`}
-            style={status === 1 ? { boxShadow: '0 0 15px rgba(34,197,94,0.6)' } : (status === 2 ? { boxShadow: '0 0 15px rgba(239,68,68,0.6)' } : {})}
-        />
+      <div className="bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl px-3 py-2 shadow-2xl">
+        <p className="text-white font-medium text-xs mb-1.5">{label}</p>
+        {payload.map((e, i) => (
+          <p key={i} className="text-[11px]" style={{ color: e.color }}>{e.name}: {fmt(e.value)}</p>
+        ))}
+      </div>
     );
+  }
+  return null;
 };
-
-// Section Container with Floating Edit Pencil and Save Button
-const DashboardSection = ({ title, children, onEdit, isEditing, onAdd, isComplete = false, onSave, hasPendingChanges }) => {
-    return (
-        <div className="relative group" style={{ overflow: 'visible' }}>
-            <div
-                className={`glass-card p-6 transition-all duration-500
-                ${isComplete
-                        ? 'glass-card-success'
-                        : 'hover:border-white/20'
-                    }`}
-                style={{ overflow: 'visible' }}
-            >
-                {/* Header */}
-                <div className="flex justify-between items-center mb-6">
-                    <h3
-                        className={`font-display font-bold text-lg tracking-wide uppercase transition-colors duration-300 ${isComplete ? 'text-acid' : 'text-white'}`}
-                        style={isComplete ? { filter: 'drop-shadow(0 0 10px var(--primary-glow))' } : {}}
-                    >
-                        {title}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                        {isEditing && hasPendingChanges && (
-                            <button
-                                onClick={onSave}
-                                className="px-3 py-1.5 bg-acid text-black rounded-lg text-xs font-bold hover:bg-white transition-colors"
-                            >
-                                GUARDAR
-                            </button>
-                        )}
-                        {isEditing && (
-                            <button
-                                onClick={onAdd}
-                                className="p-1 rounded-full bg-acid/10 text-acid hover:bg-acid/20 transition-colors"
-                                title="Agregar Item"
-                            >
-                                <Plus size={18} />
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className="space-y-0">
-                    {children}
-                </div>
-            </div>
-
-            {/* Floating Edit Pencil (Top Right, on Border - Outside glass-card to avoid clip) */}
-            <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                <button
-                    onClick={isEditing ? onSave : onEdit}
-                    className={`w-6 h-6 rounded-full flex items-center justify-center shadow-lg transition-all ${isEditing ? 'bg-acid text-black' : 'bg-zinc-800 text-white border border-white/10 hover:bg-zinc-700'}`}
-                >
-                    {isEditing ? <Check size={12} /> : <Pencil size={10} />}
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// Encabezado de columnas — único para TODOS los paneles (espaciado idéntico).
-// Debe reflejar exactamente la estructura de TransactionRow para que alineen.
-const SectionHeader = ({ isEditing, hasCategory, onEditCategories }) => (
-    <div className="flex items-center gap-3 px-2 text-[10px] text-text-muted uppercase tracking-wider mb-2 font-medium">
-        <div className="flex items-center gap-1.5 shrink-0">
-            {isEditing && <span className="w-4"></span>}
-            <span className="w-4"></span>
-        </div>
-        <span className="flex-1 min-w-0">Concepto</span>
-        {hasCategory && (
-            <span className="w-28 shrink-0 flex items-center gap-1">
-                Categoría
-                {isEditing && (
-                    <button onClick={onEditCategories} className="text-text-muted/60 hover:text-acid transition-colors" title="Editar categorías">
-                        <Settings size={11} />
-                    </button>
-                )}
-            </span>
-        )}
-        <span className="w-24 shrink-0 text-right pr-2">Fecha</span>
-        <span className="w-24 shrink-0 text-right pr-2">Valor</span>
-        {isEditing && <span className="w-6"></span>}
-    </div>
-);
-
-// Fila de transacción
-const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, section, getItemValue, onMove, isFirst, isLast, hasCategory, categories = [], itemCategory, onCategoryChange }) => {
-    return (
-        <div
-            className="flex items-center gap-3 py-1 border-b border-white/5 last:border-0 hover:bg-white/5 px-2 -mx-2 rounded-lg transition-colors min-h-[28px]"
-            onClick={(e) => isEditing && e.stopPropagation()}
-            style={{ overflow: 'visible' }}
-        >
-            {/* Flechas de orden + Bombillo (juntos, pegados) */}
-            <div className="flex items-center gap-1.5 shrink-0">
-                {isEditing && (
-                    <div className="w-4 flex flex-col items-center justify-center -my-1">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onMove('up'); }}
-                            disabled={isFirst}
-                            className="text-text-muted/50 hover:text-white disabled:opacity-20 disabled:hover:text-text-muted/50 transition-colors leading-none"
-                            title="Subir"
-                        >
-                            <ChevronUp size={13} />
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onMove('down'); }}
-                            disabled={isLast}
-                            className="text-text-muted/50 hover:text-white disabled:opacity-20 disabled:hover:text-text-muted/50 transition-colors leading-none"
-                            title="Bajar"
-                        >
-                            <ChevronDown size={13} />
-                        </button>
-                    </div>
-                )}
-                <div className="w-4 flex items-center justify-center">
-                    <StatusBulb status={getItemValue(section, item, 'status')} onClick={onStatusToggle} readOnly={isEditing} />
-                </div>
-            </div>
-
-            {/* Concepto */}
-            <div className="flex-1 min-w-0">
-                {isEditing ? (
-                    <input
-                        type="text"
-                        value={getItemValue(section, item, 'name')}
-                        onChange={(e) => onChange(item.id, 'name', e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-acid cursor-text"
-                    />
-                ) : (
-                    <span className="font-medium text-white text-xs truncate block">{getItemValue(section, item, 'name')}</span>
-                )}
-            </div>
-
-            {/* Categoría — selector solo en edición; en vista, texto limpio */}
-            {hasCategory && (
-                <div className="w-28 shrink-0">
-                    {isEditing ? (
-                        <select
-                            value={itemCategory || ''}
-                            onChange={(e) => onCategoryChange(item.id, e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-acid cursor-pointer"
-                            style={{ colorScheme: 'dark' }}
-                        >
-                            <option value="" style={{ backgroundColor: '#18181b', color: '#fff' }}>—</option>
-                            {categories.map((c) => (
-                                <option key={c} value={c} style={{ backgroundColor: '#18181b', color: '#fff' }}>{c}</option>
-                            ))}
-                        </select>
-                    ) : (
-                        <span className="text-xs text-text-muted truncate block">{itemCategory || '—'}</span>
-                    )}
-                </div>
-            )}
-
-            {/* Fecha — título y valor alineados a la derecha con el MISMO padding (pr-2) */}
-            <div className="w-24 shrink-0" style={{ overflow: 'visible', position: 'relative' }}>
-                {isEditing ? (
-                    <div className="flex justify-end" onClick={(e) => e.stopPropagation()} style={{ overflow: 'visible' }}>
-                        <CalendarInput
-                            value={getItemValue(section, item, 'date') || ''}
-                            onChange={(dateStr) => { onChange(item.id, 'date', dateStr); }}
-                            placeholder="--"
-                        />
-                    </div>
-                ) : (
-                    <div className="text-right pr-2">
-                        <span className="text-xs text-text-muted">{getItemValue(section, item, 'date')}</span>
-                    </div>
-                )}
-            </div>
-
-            {/* Valor — mismo padding (pr-2) para que el número quede bajo el título */}
-            <div className="w-24 shrink-0">
-                {isEditing ? (
-                    <input
-                        type="text"
-                        value={getItemValue(section, item, 'amount')}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => {
-                            const rawValue = e.target.value.replace(/\./g, '').replace(/,/g, '');
-                            if (!/^\d*$/.test(rawValue)) return; // Solo números
-                            const formatted = rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-                            onChange(item.id, 'amount', formatted);
-                        }}
-                        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-acid text-right cursor-text"
-                    />
-                ) : (
-                    <div className="text-right pr-2">
-                        <span className="font-bold text-white text-sm tracking-wide font-number">{getItemValue(section, item, 'amount')}</span>
-                    </div>
-                )}
-            </div>
-
-            {/* Eliminar (solo en edición) */}
-            {isEditing && (
-                <div className="w-6 shrink-0 flex justify-center">
-                    <button
-                        onClick={() => canDelete && onDelete(item.id)}
-                        disabled={!canDelete}
-                        className={`p-1 rounded transition-colors ${canDelete ? 'text-red-400 hover:text-red-300 hover:bg-red-400/10' : 'text-zinc-700 cursor-not-allowed'}`}
-                        title={canDelete ? "Eliminar" : "No se puede eliminar el último item"}
-                    >
-                        <Trash2 size={14} />
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ... (StatCard import remains)
-import StatCard from '../../shared/components/StatCard';
-import { useFinance } from '../finance/context/FinanceContext';
 
 export default function Dashboard() {
-    const { user } = useUser();
-    const {
-        data,
-        currentDate,
-        setCurrentDate,
-        updateDb,
-        reorderSection,
-        totals,
-        prevTotals,
-        trends,
-        formatCurrency,
-        months
-    } = useFinance();
+  const { userId } = useAuth();
+  const { user } = useUser();
+  const { t } = useLanguage();
 
-    // Reordenar con flechas (subir/bajar) — intercambia posiciones. 100% fiable.
-    const moveItem = (section, id, direction) => {
-        const ids = data[section].map(i => i.id);
-        const idx = ids.indexOf(id);
-        if (idx === -1) return;
-        const swap = direction === 'up' ? idx - 1 : idx + 1;
-        if (swap < 0 || swap >= ids.length) return;
-        [ids[idx], ids[swap]] = [ids[swap], ids[idx]];
-        reorderSection(section, ids);
-    };
+  const {
+    budgets,
+    currentBudget: trackerBudget,
+    currentIndex,
+    setCurrentIndex,
+    fixedExpenses,
+    calculations: trackerCalc,
+    formatCurrency: trackerFmt,
+    formatCurrencyDec,
+    MONTHS_LONG,
+    saveCurrentMonth,
+    createNextMonth,
+    savedBudgets,
+    loading,
+  } = useMonthlyTracker();
 
-    // Categorías de Gastos Fijos (desde el perfil de Supabase).
-    const { profile, updateProfile } = useAuth();
-    const categories = profile?.expense_categories || ['Necesidades', 'Deseos', 'Ahorro'];
-    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const { spaces, categories, tasks } = useTasks();
 
-    const handleSaveCategories = async (list) => {
-        try {
-            await updateProfile({ expense_categories: list });
-            toast.success('Categorías actualizadas');
-        } catch (error) {
-            console.error('Error saving categories:', error);
-            toast.error('Error al actualizar categorías');
-        }
-    };
+  const [goals, setGoals] = useState([]);
+  const [habits, setHabits] = useState([]);
 
-    // Local UI State
-    const [uiState, setUiState] = useState({ annual: false, fixedIncome: false, monthlyExpenses: false, variableExpenses: false });
+  const [pickerDate, setPickerDate] = useState(() =>
+    trackerBudget ? new Date(trackerBudget.year, trackerBudget.month) : new Date()
+  );
+  const [chartRange, setChartRange] = useState(6);
 
-    // Pending changes state (local edits before saving to DB)
-    const [pendingChanges, setPendingChanges] = useState({
-        annual: {},
-        fixedIncome: {},
-        monthlyExpenses: {},
-        variableExpenses: {}
+  const trackerLabel = `${MONTHS_LONG[pickerDate.getMonth()]} ${pickerDate.getFullYear()}`;
+  const trackerMonthLabel = trackerBudget ? `${MONTHS_LONG[trackerBudget.month]} ${trackerBudget.year}` : '';
+
+  useEffect(() => {
+    if (!userId) return;
+    getGoals(userId).then(setGoals).catch(() => {});
+    getHabits(userId).then(setHabits).catch(() => {});
+  }, [userId]);
+
+  useEffect(() => {
+    if (trackerBudget) {
+      setPickerDate(new Date(trackerBudget.year, trackerBudget.month));
+    }
+  }, [trackerBudget]);
+
+  const handleMonthChange = (newDate) => {
+    setPickerDate(newDate);
+    const y = newDate.getFullYear();
+    const m = newDate.getMonth();
+    const idx = budgets.findIndex(b => Number(b.year) === y && Number(b.month) === m);
+    if (idx >= 0) setCurrentIndex(idx);
+  };
+
+  // ── Budget for the selected month (for display, independent of tracker's currentIndex) ──
+  const selectedBudget = useMemo(() => {
+    const y = pickerDate.getFullYear();
+    const m = pickerDate.getMonth();
+    return budgets.find(b => Number(b.year) === y && Number(b.month) === m) || null;
+  }, [budgets, pickerDate]);
+
+  // ── Display calculations for the selected month ──
+  const displayCalc = useMemo(() => {
+    if (!selectedBudget) {
+      return { cop: 0, wiseCop: 0, manualCop: 0, ahorro: 0, colchon: 0, fixedTotal: 0, varTotal: 0, disponible: 0 };
+    }
+    const b = selectedBudget;
+    const wd = b.withdrawals || [];
+    const wCop = wd.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0);
+    const leg = Math.round((parseFloat(b.salary_eur) - parseFloat(b.wise_fee_eur)) * parseFloat(b.exchange_rate));
+    const wiseCop = wd.length > 0 ? wCop : (parseFloat(b.salary_eur) > 0 ? leg : 0);
+    const manualCop = Math.round(parseFloat(b.manual_income_cop) || 0);
+    const cop = wiseCop + manualCop;
+    const ahorro = Math.round(cop * (b.savings_pct || 0) / 100);
+    const colchon = Math.round(cop * (b.cushion_pct || 0) / 100);
+    const fTotal = fixedExpenses.filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+    const vTotal = (b.gastosVar || []).filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+    return { cop, wiseCop, manualCop, ahorro, colchon, fixedTotal: fTotal, varTotal: vTotal, disponible: cop - ahorro - colchon - fTotal - vTotal };
+  }, [selectedBudget, fixedExpenses]);
+
+  // ── Derived values ──
+  const income = trackerBudget ? trackerCalc.cop : 0;
+
+  const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const totalTasks = tasks.length;
+  const taskPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  const monthDays = useMemo(() =>
+    Array.from({ length: new Date(pickerDate.getFullYear(), pickerDate.getMonth() + 1, 0).getDate() },
+      (_, i) => new Date(pickerDate.getFullYear(), pickerDate.getMonth(), i + 1)
+    ), [pickerDate]);
+
+  const habitRates = useMemo(() => habits.map(h => {
+    const applicable = monthDays.filter(d => {
+      const dow = d.getDay();
+      if (h.frequency === 2) return dow >= 1 && dow <= 5;
+      if (h.frequency === 3) return dow === 0 || dow === 6;
+      return true;
     });
+    if (applicable.length === 0) return { ...h, rate: 0 };
+    const done = applicable.filter(d => {
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return (h.history || {})[k] > 0;
+    }).length;
+    return { ...h, rate: Math.round((done / applicable.length) * 100) };
+  }), [habits, monthDays]);
+  const avgHabit = useMemo(() =>
+    habitRates.length > 0
+      ? Math.round(habitRates.reduce((s, h) => s + h.rate, 0) / habitRates.length)
+      : 0
+  , [habitRates]);
 
-    // Actions (Wrappers for Context Functions)
-    const toggleEdit = (section) => {
-        if (uiState[section]) {
-            // Exiting edit mode - discard pending changes
-            setPendingChanges(prev => ({ ...prev, [section]: {} }));
-        }
-        setUiState(prev => ({ ...prev, [section]: !prev[section] }));
-    };
+  // ── Chart: income vs savings — filtered by range ──
+  const incomeExpenseChart = useMemo(() => {
+    const refY = pickerDate.getFullYear();
+    const refM = pickerDate.getMonth();
+    const budgetMap = {};
+    budgets.forEach(b => { budgetMap[`${b.year}-${b.month}`] = b; });
 
-    const handleDataChange = (section, id, field, value) => {
-        // Store change locally, don't update DB yet
-        setPendingChanges(prev => ({
-            ...prev,
-            [section]: {
-                ...prev[section],
-                [id]: {
-                    ...prev[section][id],
-                    [field]: value
-                }
-            }
-        }));
-    };
+    const data = [];
+    const months = chartRange - 1;
+    for (let i = months; i >= 0; i--) {
+      let m = refM - i, y = refY;
+      if (m < 0) { m += 12; y -= 1; }
+      const b = budgetMap[`${y}-${m}`];
+      let cop = 0, allocated = 0;
+      if (b) {
+        const wd = b.withdrawals || [];
+        const wCop = wd.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0);
+        const leg = Math.round((parseFloat(b.salary_eur) - parseFloat(b.wise_fee_eur)) * parseFloat(b.exchange_rate));
+        const wiseCop = wd.length > 0 ? wCop : (parseFloat(b.salary_eur) > 0 ? leg : 0);
+        cop = wiseCop + Math.round(parseFloat(b.manual_income_cop) || 0);
+        allocated = Math.round(cop * (b.savings_pct || 0) / 100) + Math.round(cop * (b.cushion_pct || 0) / 100);
+      }
+      data.push({
+        name: `${MONTHS[m]} ${y.toString().slice(2)}`,
+        Ingresos: Math.round(cop),
+        Ahorro: allocated,
+        Restante: Math.round(Math.max(0, cop - allocated)),
+      });
+    }
+    return data;
+  }, [budgets, pickerDate, chartRange]);
 
-    const saveSection = async (section) => {
-        const changes = pendingChanges[section];
+  // ── Expense donut ──
+  const expensePie = useMemo(() => {
+    if (!selectedBudget) return [];
 
-        // Save each pending change
-        for (const [id, fields] of Object.entries(changes)) {
-            for (const [field, value] of Object.entries(fields)) {
-                await updateDb(section, 'update', { id, field, value });
-            }
-        }
+    const fPaid = fixedExpenses.filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+    const fTotal = fixedExpenses.reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+    const fPending = Math.max(0, fTotal - fPaid);
 
-        // Clear pending changes and exit edit mode
-        setPendingChanges(prev => ({ ...prev, [section]: {} }));
-        setUiState(prev => ({ ...prev, [section]: false }));
-        toast.success('Cambios guardados');
-    };
+    const vars = selectedBudget.gastosVar || [];
+    const vPaid = vars.filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+    const vTotal = vars.reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+    const vPending = Math.max(0, vTotal - vPaid);
 
-    const getItemValue = (section, item, field) => {
-        const pending = pendingChanges[section][item.id];
-        return pending?.[field] ?? item[field];
-    };
+    return [
+      fPaid > 0 ? { name: 'Fijos pagados', value: fPaid } : null,
+      fPending > 0 ? { name: 'Fijos pend.', value: fPending } : null,
+      vPaid > 0 ? { name: 'Var. pagados', value: vPaid } : null,
+      vPending > 0 ? { name: 'Var. pend.', value: vPending } : null,
+    ].filter(Boolean);
+  }, [fixedExpenses, selectedBudget]);
 
-    const toggleStatus = (section, id) => {
-        const item = data[section].find(i => i.id === id);
-        if (item) {
-            const nextStatus = (item.status + 1) % 3;
-            updateDb(section, 'update', { id, field: 'status', value: nextStatus });
-        }
-    };
+  // ── Accumulated savings (CDT + Colchón) — filtered by selected month ──
+  const savingsChart = useMemo(() => {
+    const refY = pickerDate.getFullYear();
+    const refM = pickerDate.getMonth();
+    const filtered = savedBudgets.filter(b => {
+      return b.year < refY || (b.year === refY && b.month <= refM);
+    });
+    let accA = 0, accC = 0;
+    return filtered.map(m => {
+      const wc = m.withdrawals?.length
+        ? m.withdrawals.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0)
+        : Math.round((parseFloat(m.salary_eur) - parseFloat(m.wise_fee_eur)) * parseFloat(m.exchange_rate));
+      const c = wc + Math.round(parseFloat(m.manual_income_cop) || 0);
+      accA += Math.round(c * (m.savings_pct || 0) / 100);
+      accC += Math.round(c * (m.cushion_pct || 0) / 100);
+      return { name: `${MONTHS[m.month]}`, CDT: accA, Colchón: accC };
+    });
+  }, [savedBudgets, pickerDate]);
 
-    const addItem = (section) => {
-        const newItem = { id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2), name: 'Nuevo Item', date: months[currentDate.getMonth()] + ' 01', amount: '0', status: 0 };
-        updateDb(section, 'add', newItem);
-        toast.success('Item agregado');
-    };
+  const taskSpaceData = useMemo(() =>
+    spaces.map(s => {
+      const sc = categories.filter(c => c.space_id === s.id);
+      const st = tasks.filter(t => sc.some(c => c.id === t.category_id));
+      const done = st.filter(t => t.status === 'completed').length;
+      return { name: s.name, Completadas: done, Pendientes: Math.max(0, st.length - done), color: s.color || CHART_GREEN };
+    }), [spaces, categories, tasks]);
 
-    const deleteItem = (section, id) => {
-        updateDb(section, 'delete', { id });
-        toast.success('Item eliminado');
-    };
+  const goalsCompleted = goals.filter(g => g.current >= g.target).length;
 
+  const StatPill = ({ label, value, color }) => (
+    <div className="flex items-center gap-2.5">
+      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+      <div className="min-w-0">
+        <div className="text-2xl sm:text-[26px] font-bold text-white tabular-nums leading-none truncate">{value}</div>
+        <div className="text-[11px] text-text-muted mt-0.5">{label}</div>
+      </div>
+    </div>
+  );
+
+  if (loading) {
     return (
-        <div className="space-y-8 animate-fade-in pb-20">
-
-            {/* Greeting + selector de mes alineado al título (consistente con Billetera) */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="min-w-0">
-                    <h1 className="text-4xl md:text-5xl font-bold text-white mb-0 tracking-tight leading-[0.95]">
-                        Hola <span className="bg-gradient-to-r from-acid to-forest bg-clip-text text-transparent">{user?.name?.split(' ')[0]}</span>
-                    </h1>
-                    <p className="text-text-muted text-lg -mt-1 font-medium opacity-80">Bienvenido a tu Dashboard</p>
-                </div>
-                <div className="shrink-0 relative z-50">
-                    <DatePicker selectedDate={currentDate} onChange={setCurrentDate} monthOnly={true} />
-                </div>
-            </div>
-
-            {/* --- Stats Grid (Classic) --- */}
-            <div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 relative z-0">
-                    <StatCard
-                        title="Ingresos Totales"
-                        amount={formatCurrency(totals.income)}
-                        trend={trends.income}
-                        icon={DollarSign}
-                        variant="filled"
-                        colorTheme="green"
-                    />
-                    <StatCard
-                        title="Gastos Fijos"
-                        amount={formatCurrency(totals.fixedExpenses)}
-                        trend={trends.fixedExpenses}
-                        icon={TrendingDown}
-                        variant="filled"
-                        colorTheme="red"
-                    />
-                    <StatCard
-                        title="Gastos Variables"
-                        amount={formatCurrency(totals.variableExpenses)}
-                        trend={trends.variableExpenses}
-                        icon={TrendingDown}
-                        variant="filled"
-                        colorTheme="orange"
-                    />
-                    <StatCard
-                        title="Disponible"
-                        amount={formatCurrency(totals.savings)}
-                        icon={Wallet}
-                        colorTheme="blue"
-                        subtitle="Saldo del mes"
-                    />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-
-                {/* Left Column (4/12) - Annual & Income */}
-                <div className="xl:col-span-5 space-y-8">
-
-                    {/* Annual Expenses */}
-                    <DashboardSection
-                        title="Gastos Anuales"
-                        isEditing={uiState.annual}
-                        onEdit={() => toggleEdit('annual')}
-                        onAdd={() => addItem('annual')}
-                        onSave={() => saveSection('annual')}
-                        hasPendingChanges={Object.keys(pendingChanges.annual).length > 0}
-                        isComplete={data.annual.length > 0 && data.annual.every(item => item.status === 1)}
-                    >
-                        {/* Column Headers */}
-                        <SectionHeader isEditing={uiState.annual} />
-                        {data.annual.map((item, idx) => (
-                            <TransactionRow
-                                key={item.id}
-                                item={item}
-                                isEditing={uiState.annual}
-                                onChange={(id, field, val) => handleDataChange('annual', id, field, val)}
-                                onDelete={(id) => deleteItem('annual', id)}
-                                onStatusToggle={() => toggleStatus('annual', item.id)}
-                                canDelete={data.annual.length > 1}
-                                section="annual"
-                                getItemValue={getItemValue}
-                                onMove={(dir) => moveItem('annual', item.id, dir)}
-                                isFirst={idx === 0}
-                                isLast={idx === data.annual.length - 1}
-                            />
-                        ))}
-                    </DashboardSection>
-
-                    {/* Fixed Incomes */}
-                    <DashboardSection
-                        title="Ingresos Fijos"
-                        isEditing={uiState.fixedIncome}
-                        onEdit={() => toggleEdit('fixedIncome')}
-                        onAdd={() => addItem('fixedIncome')}
-                        onSave={() => saveSection('fixedIncome')}
-                        hasPendingChanges={Object.keys(pendingChanges.fixedIncome).length > 0}
-                        isComplete={data.fixedIncome.length > 0 && data.fixedIncome.every(item => item.status === 1)}
-                    >
-                        {/* Column Headers */}
-                        <SectionHeader isEditing={uiState.fixedIncome} />
-                        {data.fixedIncome.map((item, idx) => (
-                            <TransactionRow
-                                key={item.id}
-                                item={item}
-                                isEditing={uiState.fixedIncome}
-                                onChange={(id, field, val) => handleDataChange('fixedIncome', id, field, val)}
-                                onDelete={(id) => deleteItem('fixedIncome', id)}
-                                onStatusToggle={() => toggleStatus('fixedIncome', item.id)}
-                                canDelete={data.fixedIncome.length > 1}
-                                section="fixedIncome"
-                                getItemValue={getItemValue}
-                                onMove={(dir) => moveItem('fixedIncome', item.id, dir)}
-                                isFirst={idx === 0}
-                                isLast={idx === data.fixedIncome.length - 1}
-                            />
-                        ))}
-                        {/* Total Footer */}
-                        <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center text-sm">
-                            <div>
-                                <span className="text-text-muted">Total Ingresos</span>
-                                <span className="text-text-muted/50 text-xs ml-2">(Mes anterior: {formatCurrency(prevTotals.income)})</span>
-                            </div>
-                            <span className="font-bold text-acid">{formatCurrency(totals.income)}</span>
-                        </div>
-                    </DashboardSection>
-
-                </div>
-
-                {/* Right Column (8/12) - Monthly Budget (Main Focus) */}
-                <div className="xl:col-span-7 space-y-8">
-
-                    {/* Fixed Monthly Expenses */}
-                    <DashboardSection
-                        title="Gastos Fijos Mensuales"
-                        isEditing={uiState.monthlyExpenses}
-                        onEdit={() => toggleEdit('monthlyExpenses')}
-                        onAdd={() => addItem('monthlyExpenses')}
-                        onSave={() => saveSection('monthlyExpenses')}
-                        hasPendingChanges={Object.keys(pendingChanges.monthlyExpenses).length > 0}
-                        isComplete={data.monthlyExpenses.length > 0 && data.monthlyExpenses.every(item => item.status === 1)}
-                    >
-
-                        {/* Column Headers */}
-                        <SectionHeader isEditing={uiState.monthlyExpenses} hasCategory onEditCategories={() => setIsCategoryModalOpen(true)} />
-
-                        {data.monthlyExpenses.map((item, idx) => (
-                            <TransactionRow
-                                key={item.id}
-                                item={item}
-                                isEditing={uiState.monthlyExpenses}
-                                onChange={(id, field, val) => handleDataChange('monthlyExpenses', id, field, val)}
-                                onDelete={(id) => deleteItem('monthlyExpenses', id)}
-                                onStatusToggle={() => toggleStatus('monthlyExpenses', item.id)}
-                                canDelete={data.monthlyExpenses.length > 1}
-                                section="monthlyExpenses"
-                                getItemValue={getItemValue}
-                                onMove={(dir) => moveItem('monthlyExpenses', item.id, dir)}
-                                isFirst={idx === 0}
-                                isLast={idx === data.monthlyExpenses.length - 1}
-                                hasCategory
-                                categories={categories}
-                                itemCategory={getItemValue('monthlyExpenses', item, 'category_label')}
-                                onCategoryChange={(id, val) => handleDataChange('monthlyExpenses', id, 'category_label', val)}
-                            />
-                        ))}
-                        {/* Total Footer */}
-                        <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center text-sm">
-                            <div>
-                                <span className="text-text-muted">Total Fijos</span>
-                                <span className="text-text-muted/50 text-xs ml-2">(Mes anterior: {formatCurrency(prevTotals.fixedExpenses)})</span>
-                            </div>
-                            <span className="font-bold text-white">{formatCurrency(totals.fixedExpenses)}</span>
-                        </div>
-                    </DashboardSection>
-
-                    {/* Variable Monthly Expenses */}
-                    <DashboardSection
-                        title="Gastos Variables Mensuales"
-                        isEditing={uiState.variableExpenses}
-                        onEdit={() => toggleEdit('variableExpenses')}
-                        onAdd={() => addItem('variableExpenses')}
-                        onSave={() => saveSection('variableExpenses')}
-                        hasPendingChanges={Object.keys(pendingChanges.variableExpenses).length > 0}
-                        isComplete={data.variableExpenses.length > 0 && data.variableExpenses.every(item => item.status === 1)}
-                    >
-                        {/* Column Headers */}
-                        <SectionHeader isEditing={uiState.variableExpenses} />
-
-                        {data.variableExpenses.map((item, idx) => (
-                            <TransactionRow
-                                key={item.id}
-                                item={item}
-                                isEditing={uiState.variableExpenses}
-                                onChange={(id, field, val) => handleDataChange('variableExpenses', id, field, val)}
-                                onDelete={(id) => deleteItem('variableExpenses', id)}
-                                onStatusToggle={() => toggleStatus('variableExpenses', item.id)}
-                                canDelete={data.variableExpenses.length > 1}
-                                section="variableExpenses"
-                                getItemValue={getItemValue}
-                                onMove={(dir) => moveItem('variableExpenses', item.id, dir)}
-                                isFirst={idx === 0}
-                                isLast={idx === data.variableExpenses.length - 1}
-                            />
-                        ))}
-                        {/* Total Footer */}
-                        <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center text-sm">
-                            <div>
-                                <span className="text-text-muted">Total Variables</span>
-                                <span className="text-text-muted/50 text-xs ml-2">(Mes anterior: {formatCurrency(prevTotals.variableExpenses)})</span>
-                            </div>
-                            <span className="font-bold text-white">{formatCurrency(totals.variableExpenses)}</span>
-                        </div>
-                    </DashboardSection>
-
-                </div>
-            </div>
-
-            {/* Editor de categorías (pop-up) */}
-            <CategoryEditorModal
-                isOpen={isCategoryModalOpen}
-                categories={categories}
-                onClose={() => setIsCategoryModalOpen(false)}
-                onSave={handleSaveCategories}
-            />
-
+      <div className="min-h-[60vh] flex items-center justify-center animate-fade-in">
+        <div className="text-center space-y-4">
+          <div className="w-10 h-10 border-2 border-acid border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-text-muted text-sm">Cargando datos...</p>
         </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in pb-20">
+
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-tight">
+            {t('dashboard.hola')} <span className="bg-gradient-to-r from-acid to-forest bg-clip-text text-transparent">{user?.name?.split(' ')[0]}</span>
+          </h1>
+          <p className="text-text-muted text-sm mt-0.5">{trackerLabel || t('dashboard.bienvenido')}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <DatePicker selectedDate={pickerDate} onChange={handleMonthChange} monthOnly={true} />
+          <span className={`text-[11px] px-2.5 py-1 rounded-md font-medium shrink-0 ${
+            selectedBudget?.saved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+          }`}>
+            {selectedBudget?.saved ? t('dashboard.mesGuardado') : t('dashboard.enProgreso')}
+          </span>
+        </div>
+      </div>
+
+      {/* STAT ROW */}
+      <div className="glass-card p-5 sm:p-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
+          <StatPill label={t('dashboard.ingresosTotales')} value={trackerFmt(displayCalc.cop)} color={CHART_GREEN} />
+          <StatPill label="Gastos fijos" value={trackerFmt(displayCalc.fixedTotal)} color={CHART_RED} />
+          <StatPill label="Gastos variables" value={trackerFmt(displayCalc.varTotal)} color={CHART_ORANGE} />
+          <StatPill label={t('dashboard.disponible')} value={trackerFmt(displayCalc.disponible)} color={CHART_BLUE} />
+          <StatPill label="Tareas" value={`${taskPct}%`} color={CHART_GREEN} />
+          <StatPill label="Hábitos" value={`${avgHabit}%`} color={CHART_PURPLE} />
+        </div>
+      </div>
+
+      {/* INCOME vs SAVINGS CHART */}
+      <div className="glass-card p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+          <div className="flex items-center gap-2">
+            <BarChart3 size={17} className="text-green-400" />
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Ingresos vs Ahorro</h3>
+          </div>
+          <div className="flex gap-1 bg-[var(--bg-input)] rounded-lg p-0.5">
+            {[1, 3, 6, 12].map(n => (
+              <button
+                key={n}
+                onClick={() => setChartRange(n)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  chartRange === n ? 'bg-[var(--bg-card-solid)] text-white' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                {n === 1 ? '1M' : n === 12 ? '1A' : `${n}M`}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="h-64 sm:h-72">
+          {incomeExpenseChart.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={incomeExpenseChart} margin={{ top: 5, right: 10, left: -15, bottom: 0 }} barGap={6}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis dataKey="name" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 10 }} tickLine={false} axisLine={false} dy={8} />
+                <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `$${Math.round(v / 1000)}k`} width={45} />
+                <Tooltip content={<ChartTooltip fmt={trackerFmt} />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                <Bar dataKey="Ingresos" name="Ingresos" fill={CHART_GREEN} radius={[5, 5, 0, 0]} maxBarSize={32} />
+                <Bar dataKey="Ahorro" name="Ahorro" fill={ACC_SAVINGS} radius={[5, 5, 0, 0]} maxBarSize={32} />
+                <Bar dataKey="Restante" name="Restante" fill="rgba(255,255,255,0.1)" radius={[5, 5, 0, 0]} maxBarSize={32} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-text-muted text-xs">Sin meses registrados</div>
+          )}
+        </div>
+        <div className="flex justify-center gap-8 mt-4">
+          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_GREEN }} /><span className="text-text-muted text-xs">Ingresos</span></div>
+          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ACC_SAVINGS }} /><span className="text-text-muted text-xs">Ahorro</span></div>
+        </div>
+      </div>
+
+      {/* TWO-COL: Pie + Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Expense donut */}
+        <div className="glass-card p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <TrendingDown size={17} className="text-orange-400" />
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Gastos del mes</h3>
+          </div>
+          <div className="h-52 sm:h-60 flex items-center justify-center relative">
+            {expensePie.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={expensePie} innerRadius={48} outerRadius={72} paddingAngle={4} dataKey="value" stroke="none">
+                    {expensePie.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip fmt={trackerFmt} />} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <span className="text-text-muted text-xs">Sin gastos este mes</span>
+            )}
+            {expensePie.length > 0 && (
+              <div className="absolute text-center pointer-events-none">
+                <span className="text-[10px] text-text-muted block mb-0.5">Total pagado</span>
+                <span className="font-bold text-white text-sm tracking-tight">
+                  {trackerFmt(expensePie.filter(e => !e.name.includes('pend.')).reduce((a, b) => a + b.value, 0))}
+                </span>
+              </div>
+            )}
+          </div>
+          {expensePie.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-4">
+              {expensePie.map((item, i) => (
+                <div key={item.name} className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                  <span className="text-text-muted text-[11px]">{item.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Accumulated savings area */}
+        <div className="glass-card p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <TrendingUp size={17} className="text-green-400" />
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Ahorro acumulado</h3>
+          </div>
+          <div className="h-52 sm:h-60">
+            {savingsChart.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={savingsChart} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="cdtG" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={ACC_SAVINGS} stopOpacity={0.25} /><stop offset="95%" stopColor={ACC_SAVINGS} stopOpacity={0} /></linearGradient>
+                    <linearGradient id="colG" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={ACC_CUSHION} stopOpacity={0.25} /><stop offset="95%" stopColor={ACC_CUSHION} stopOpacity={0} /></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="name" stroke="#52525b" tick={{ fill: '#71717a', fontSize: 10 }} tickLine={false} axisLine={false} dy={8} />
+                  <YAxis stroke="#52525b" tick={{ fill: '#71717a', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `$${Math.round(v / 1000)}k`} width={45} />
+                  <Tooltip content={<ChartTooltip fmt={trackerFmt} />} />
+                  <Area type="monotone" dataKey="CDT" stroke={ACC_SAVINGS} strokeWidth={2} fill="url(#cdtG)" />
+                  <Area type="monotone" dataKey="Colchón" stroke={ACC_CUSHION} strokeWidth={2} fill="url(#colG)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-text-muted text-xs">Guarda tu primer mes para ver el historial</div>
+            )}
+          </div>
+          {savingsChart.length > 0 && (
+            <div className="flex justify-center gap-8 mt-4">
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ACC_SAVINGS }} /><span className="text-text-muted text-xs">CDT</span></div>
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ACC_CUSHION }} /><span className="text-text-muted text-xs">Colchón</span></div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* TASKS + HABITS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="glass-card p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <CheckSquare size={17} className="text-acid" />
+              <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Tareas por espacio</h3>
+            </div>
+            <span className={`text-xs font-bold ${taskPct >= 70 ? 'text-green-400' : taskPct >= 40 ? 'text-amber-400' : 'text-red-400'}`}>{taskPct}%</span>
+          </div>
+          <div className="h-44 sm:h-48">
+            {taskSpaceData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={taskSpaceData} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <XAxis type="number" stroke="transparent" tick={{ fill: '#71717a', fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis type="category" dataKey="name" stroke="transparent" tick={{ fill: '#a1a1aa', fontSize: 11 }} tickLine={false} axisLine={false} width={70} />
+                  <Tooltip />
+                  <Bar dataKey="Completadas" stackId="a" fill={CHART_GREEN} radius={[0, 3, 3, 0]} maxBarSize={18} />
+                  <Bar dataKey="Pendientes" stackId="a" fill="rgba(255,255,255,0.08)" radius={[0, 3, 3, 0]} maxBarSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-text-muted text-xs">Sin espacios de tareas</div>
+            )}
+          </div>
+        </div>
+
+        <div className="glass-card p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <Dumbbell size={17} className="text-purple-400" />
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Hábitos del mes</h3>
+          </div>
+          {habitRates.length === 0 ? (
+            <p className="text-text-muted text-xs text-center py-10">Sin hábitos configurados</p>
+          ) : (
+            <div className="space-y-3.5 max-h-48 overflow-y-auto pr-1">
+              {habitRates.map(h => (
+                <div key={h.id}>
+                  <div className="flex justify-between items-baseline mb-1.5">
+                    <span className="text-sm text-white truncate mr-2">{h.name}</span>
+                    <span className="text-[11px] text-text-muted shrink-0">{h.rate}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${h.rate}%`, backgroundColor: h.color || CHART_PURPLE }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* GOALS */}
+      {goals.length > 0 && (
+        <div className="glass-card p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <Trophy size={17} className="text-yellow-400" />
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wide">Metas financieras</h3>
+            <span className="text-[11px] text-text-muted ml-auto">{goalsCompleted}/{goals.length} cumplidas</span>
+          </div>
+          <div className="space-y-3.5">
+            {goals.map(g => {
+              const pct = g.target > 0 ? Math.min(100, (g.current / g.target) * 100) : 0;
+              return (
+                <div key={g.id}>
+                  <div className="flex justify-between items-baseline mb-1.5">
+                    <span className="text-sm text-white truncate mr-2">{g.title}</span>
+                    <span className="text-[11px] text-text-muted shrink-0">{trackerFmt(g.current)} / {trackerFmt(g.target)}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: g.color || CHART_GREEN }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ACTIONS */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={() => { saveCurrentMonth(); toast.success(t('dashboard.mesGuardadoToast')); }}
+          disabled={trackerBudget?.saved}
+          className="flex-1 py-3 rounded-xl text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <Save size={15} /> {t('dashboard.guardar')} {trackerMonthLabel}
+        </button>
+        <button
+          onClick={() => { createNextMonth(); toast.success(t('dashboard.mesSiguienteToast')); }}
+          className="flex-1 py-3 rounded-xl text-sm font-medium bg-[var(--bg-input)] text-[var(--text-primary)] border border-[var(--border-card)] hover:bg-[var(--bg-card-solid)] transition-colors flex items-center justify-center gap-2"
+        >
+          <Plus size={15} /> {t('dashboard.crearMesSiguiente')}
+        </button>
+      </div>
+
+    </div>
+  );
 }

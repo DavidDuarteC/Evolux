@@ -29,6 +29,8 @@ lerna-debug.log*
 
 # Testing
 coverage
+tests/
+vitest.config.*
 
 # Editor directories and files
 .vscode

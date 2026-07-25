@@ -5,6 +5,7 @@ import ColorPicker from '../../shared/components/ColorPicker';
 import PageHeader from '../../shared/components/PageHeader';
 import { toast } from 'sonner';
 import { useAuth } from '../../hooks/useAuth';
+import { useLanguage } from '../../context/LanguageContext';
 import { getGoals, createGoal, updateGoal, deleteGoal, addGoalHistory, deleteGoalHistory } from './services/goals';
 
 const formatMoney = (amount) => {
@@ -22,6 +23,7 @@ const formatHistoryDate = (d) => {
 
 export default function Goals() {
     const { userId, isAuthenticated } = useAuth();
+    const { t } = useLanguage();
     const [goals, setGoals] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingGoal, setEditingGoal] = useState(null);
@@ -153,7 +155,7 @@ export default function Goals() {
                 }
 
                 setGoals([{ id: createdGoal.id, ...newGoalData, history: initialHistory }, ...goals]);
-                toast.success('Meta creada');
+                toast.success(t('goals.metaCreada'));
             }
             closeModal();
         } catch (error) {
@@ -221,7 +223,7 @@ export default function Goals() {
         try {
             await deleteGoal(id, userId);
             setGoals(goals.filter(g => g.id !== id));
-            toast.success('Meta eliminada');
+            toast.success(t('goals.metaEliminada'));
         } catch (error) {
             console.error('Error deleting goal:', error);
             toast.error('Error al eliminar la meta');
@@ -232,11 +234,11 @@ export default function Goals() {
         <div className="space-y-8 animate-fade-in pb-20 relative">
 
             <PageHeader
-                title="Mis Metas"
+                title={t('goals.title')}
                 subtitle="Sigue tu progreso para lograrlo."
                 right={
                     <button onClick={() => openModal()} className="btn-primary" disabled={isLoading}>
-                        <Plus size={18} /> Crear Meta
+                        <Plus size={18} /> {t('goals.nuevaMeta')}
                     </button>
                 }
             />
@@ -275,7 +277,7 @@ export default function Goals() {
                                 <X size={20} />
                             </button>
 
-                            <h3 className="text-2xl font-bold text-white mb-6">{editingGoal ? 'Editar Meta' : 'Nueva Meta'}</h3>
+                            <h3 className="text-2xl font-bold text-white mb-6">{editingGoal ? 'Editar Meta' : t('goals.nuevaMeta')}</h3>
 
                             <div className="space-y-4">
                                 <div>
@@ -324,10 +326,10 @@ export default function Goals() {
 
                             <div className="mt-8 flex gap-3">
                                 <button onClick={closeModal} className="flex-1 py-3 rounded-xl bg-white/5 text-white font-bold hover:bg-white/10 transition-colors">
-                                    Cancelar
+                                    {t('common.cancelar')}
                                 </button>
                                 <button onClick={handleSaveGoal} className="flex-1 py-3 rounded-xl bg-acid text-black font-bold hover:bg-white transition-colors shadow-[0_0_15px_rgba(190,242,100,0.2)]">
-                                    {editingGoal ? 'Actualizar' : 'Crear Meta'}
+                                    {editingGoal ? 'Actualizar' : t('goals.nuevaMeta')}
                                 </button>
                             </div>
                         </motion.div>
@@ -339,6 +341,7 @@ export default function Goals() {
 }
 
 const GoalCard = ({ goal, onEdit, onTransaction, onDelete, onDeleteMovement }) => {
+    const { t } = useLanguage();
     const [amountInput, setAmountInput] = useState('');
     const [noteInput, setNoteInput] = useState('');
     const [showHistory, setShowHistory] = useState(false);
@@ -369,8 +372,19 @@ const GoalCard = ({ goal, onEdit, onTransaction, onDelete, onDeleteMovement }) =
             <div className="glass-card p-5 border transition-all hover:bg-white/[0.02]" style={customStyle}>
 
                 <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <button onClick={onEdit} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors" title="Editar">
+                     <button onClick={onEdit} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors" title={t('common.editar')}>
                         <Pencil size={14} />
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (window.confirm(t('goals.eliminarConfirm'))) {
+                                onDelete();
+                            }
+                        }}
+                        className="p-2 bg-white/10 hover:bg-red-500/20 text-white hover:text-red-400 rounded-lg transition-colors"
+                        title="Eliminar meta"
+                    >
+                        <Trash2 size={14} />
                     </button>
                 </div>
 
