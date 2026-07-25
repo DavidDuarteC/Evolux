@@ -2,16 +2,12 @@ name: Sync Forks
 
 on:
   push:
-    branches: [main]
+    branches: [main, Dev]
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Push to forks
         env:
           GH_TOKEN: ${{ secrets.FORK_SYNC_PAT }}
@@ -19,15 +15,18 @@ jobs:
         run: |
           if [ -z "$FORKS" ]; then
             echo "No forks configured."
-            echo "Set FORK_REPOS as a repository variable (Settings → Variables)."
-            echo "Format: friend1/repo friend2/repo"
             exit 0
           fi
 
+          BRANCH="${{ github.ref_name }}"
+          OWNER_REPO="${{ github.repository }}"
+
+          git clone "https://${GH_TOKEN}@github.com/${OWNER_REPO}.git" /tmp/repo
+          cd /tmp/repo
+          git checkout "$BRANCH"
+
           for fork in $FORKS; do
-            echo "→ Syncing $fork ..."
-            git remote add fork "https://x-access-token:${GH_TOKEN}@github.com/${fork}.git"
-            git push fork main --force-with-lease
-            git remote remove fork
+            echo "→ Syncing $fork ($BRANCH) ..."
+            git push "https://${GH_TOKEN}@github.com/${fork}.git" "$BRANCH" --force
             echo "✔ $fork synced"
           done
