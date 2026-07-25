@@ -522,7 +522,7 @@ export default function Fitness() {
             />
 
             {/* Overview Cards (reutilizables) — 1 columna en angosto, 3 en fila en ancho */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 relative z-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
                 <HabitStatCard label="Mejor Racha" value={currentStreak} suffix={currentStreak === 1 ? 'Día' : 'Días'} color="blue" icon={Flame} />
                 <HabitStatCard label="Hábito Top" value={`${bestCompletion}%`} suffix={bestHabit?.name || '---'} color="green" icon={Trophy} />
                 <HabitStatCard label="Menor Racha" value={`${worstCompletion}%`} suffix={worstHabit?.name || '---'} color="red" icon={AlertTriangle} />

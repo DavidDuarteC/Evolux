@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import NotificationBell from '../shared/components/NotificationBell';
 import { useUser } from '../context/UserContext';
@@ -7,6 +8,7 @@ import { useTheme } from '../context/ThemeContext';
 export default function MainLayout({ currentTab, onTabChange, children }) {
     const { user } = useUser();
     const { isDark, accentColor } = useTheme();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     return (
         <div className="flex min-h-screen transition-colors duration-500 overflow-hidden relative"
@@ -39,13 +41,28 @@ export default function MainLayout({ currentTab, onTabChange, children }) {
                 </div>
             )}
 
-            <Sidebar currentTab={currentTab} onTabChange={onTabChange} />
+            <Sidebar
+                currentTab={currentTab}
+                onTabChange={onTabChange}
+                mobileOpen={mobileMenuOpen}
+                onMobileClose={() => setMobileMenuOpen(false)}
+            />
 
-            <main className="flex-1 min-w-0 relative z-10 h-screen overflow-y-auto p-4 md:p-8 pt-12 md:pt-16 custom-scrollbar">
+            <main className="flex-1 min-w-0 relative z-10 h-screen overflow-y-auto p-4 md:p-8 pt-14 md:pt-16 custom-scrollbar">
+                {/* Mobile hamburger */}
+                <button
+                    onClick={() => setMobileMenuOpen(true)}
+                    className="md:hidden fixed top-4 left-4 z-30 w-9 h-9 flex items-center justify-center rounded-xl bg-[var(--bg-card-solid)] border border-[var(--border-card)] text-[var(--text-primary)] hover:bg-white/10 transition-colors"
+                    aria-label="Abrir menú"
+                >
+                    <Menu size={18} />
+                </button>
+
                 {/* Notification Bell */}
-                <div className="fixed top-4 right-6 z-40">
+                <div className="fixed top-4 right-6 z-30">
                     <NotificationBell />
                 </div>
+
                 {/* Content */}
                 <div className="w-full max-w-7xl mx-auto pb-20">
                     <div className="grid gap-6">
