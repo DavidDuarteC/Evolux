@@ -135,7 +135,7 @@ export default function Profile() {
                                     <button onClick={() => setIsEditingAvatar(false)} className="text-text-muted hover:text-white"><X size={24} /></button>
                                 </div>
 
-                                 <div className="grid grid-cols-5 gap-3 mb-4">
+                                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-4">
                                     {AVAILABLE_AVATARS.map((src, index) => (
                                         <button
                                             key={index}

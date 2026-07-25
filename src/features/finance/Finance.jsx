@@ -717,15 +717,15 @@ function ExpensesTab() {
             <p className="text-xs text-[var(--text-muted)] mb-4">{isFixed ? 'Se cargan a la tarjeta de crédito y se pagan de contado.' : 'Mercado, salidas, compras puntuales, lo que varíe mes a mes.'}</p>
             <div className="space-y-2">
               {(isFixed ? fixedExpenses : selectedBudget?.gastosVar || []).map((item) => (
-                <div key={item.id} className="flex items-center gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
+                <div key={item.id} className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
                   <StatusBulb
                     status={item.status || 0}
                     onClick={() => isFixed ? toggleFixedExpenseStatus(item.id) : toggleVariableExpenseStatus(item.id)}
                   />
-                  <input type="text" value={item.label} onChange={(e) => isFixed ? updateFixedExpense(item.id, 'label', e.target.value) : updateVariableExpense(item.id, 'label', e.target.value)} placeholder="Nombre" className="flex-1 min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
-                  <input type="number" value={item.amount} onChange={(e) => isFixed ? updateFixedExpense(item.id, 'amount', e.target.value) : updateVariableExpense(item.id, 'amount', e.target.value)} className="w-28 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] text-right focus:outline-none focus:border-[var(--border-hover)]" />
-                  <button onClick={() => isFixed ? deleteFixedExpense(item.id) : deleteVariableExpense(item.id)} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0" aria-label={t('finance.eliminar')}>
-                    <Trash2 size={14} />
+                  <input type="text" value={item.label} onChange={(e) => isFixed ? updateFixedExpense(item.id, 'label', e.target.value) : updateVariableExpense(item.id, 'label', e.target.value)} placeholder="Nombre" className="flex-1 min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-2 sm:px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
+                  <input type="number" value={item.amount} onChange={(e) => isFixed ? updateFixedExpense(item.id, 'amount', e.target.value) : updateVariableExpense(item.id, 'amount', e.target.value)} className="w-20 sm:w-28 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-2 sm:px-3 py-2 text-sm text-[var(--text-primary)] text-right focus:outline-none focus:border-[var(--border-hover)]" />
+                  <button onClick={() => isFixed ? deleteFixedExpense(item.id) : deleteVariableExpense(item.id)} className="p-1.5 sm:p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0" aria-label={t('finance.eliminar')}>
+                    <Trash2 size={13} />
                   </button>
                 </div>
               ))}
