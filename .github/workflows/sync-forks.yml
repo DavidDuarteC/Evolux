@@ -2,7 +2,7 @@ name: Sync Forks
 
 on:
   push:
-    branches: [main]
+    branches: [main, Dev]
 
 jobs:
   sync:
@@ -24,10 +24,11 @@ jobs:
             exit 0
           fi
 
+          BRANCH="${{ github.ref_name }}"
           for fork in $FORKS; do
-            echo "→ Syncing $fork ..."
+            echo "→ Syncing $fork ($BRANCH) ..."
             git remote add fork "https://${GH_TOKEN}@github.com/${fork}.git"
-            git push fork main --force-with-lease
+            git push fork "refs/heads/${BRANCH}:refs/heads/${BRANCH}" --force-with-lease
             git remote remove fork
             echo "✔ $fork synced"
           done
