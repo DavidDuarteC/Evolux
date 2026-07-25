@@ -26,7 +26,7 @@ jobs:
 
           for fork in $FORKS; do
             echo "→ Syncing $fork ..."
-            git remote add fork "https://x-access-token:${GH_TOKEN}@github.com/${fork}.git"
+            git remote add fork "https://${GH_TOKEN}@github.com/${fork}.git"
             git push fork main --force-with-lease
             git remote remove fork
             echo "✔ $fork synced"
