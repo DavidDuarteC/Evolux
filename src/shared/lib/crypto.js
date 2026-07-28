@@ -28,6 +28,10 @@ const SENSITIVE_FIELDS = {
     wise_fee_eur: 'number',
     exchange_rate: 'number',
     manual_income_cop: 'number',
+    usd_amount: 'number',
+    usd_rate: 'number',
+    usd_fee: 'number',
+    usd_cop: 'number',
   },
   monthly_fixed_expenses: {
     label: 'string',
@@ -37,14 +41,14 @@ const SENSITIVE_FIELDS = {
     label: 'string',
     amount: 'number',
   },
+  monthly_incomes: {
+    label: 'string',
+    amount: 'number',
+    fee: 'number',
+    rate: 'number',
+  },
   wise_deposits: {
     amount_eur: 'number',
-  },
-  wise_withdrawals: {
-    amount_eur: 'number',
-    exchange_rate: 'number',
-    fee_eur: 'number',
-    cop_received: 'number',
   },
 };
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Settings, Bell, Palette, Pencil, X, Plus, ArrowRightLeft, Globe, Sun, Moon, Shield, Info } from 'lucide-react';
+import { User, Settings, Bell, Palette, Pencil, X, Plus, ArrowRightLeft, DollarSign, Globe, Sun, Moon, Shield, Info } from 'lucide-react';
 import { useUser } from '../../context/UserContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -18,7 +18,7 @@ const AVAILABLE_AVATARS = [
 ];
 
 export default function Profile() {
-    const { user, updateName, updateAvatar, updateUseWise, updateLanguage } = useUser();
+    const { user, updateName, updateAvatar, updateUseWise, updateUseUsd, updateLanguage } = useUser();
     const { accentColor, setAccentColor, isDark, toggleMode } = useTheme();
     const { t } = useLanguage();
     const [isEditingAvatar, setIsEditingAvatar] = useState(false);
@@ -285,7 +285,7 @@ export default function Profile() {
                         </div>
 
                         {/* Wise */}
-                        <div className="flex items-center justify-between py-3">
+                        <div className="flex items-center justify-between py-3 border-b border-white/5">
                             <div className="flex items-center gap-3">
                                 <ArrowRightLeft size={18} className="text-blue-400" />
                                 <div>
@@ -301,6 +301,26 @@ export default function Profile() {
                                 className={`relative w-14 h-7 rounded-full transition-colors ${user.useWise ? 'bg-acid' : 'bg-white/10'}`}
                             >
                                 <div className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-lg transition-transform ${user.useWise ? 'translate-x-7' : 'translate-x-0.5'}`} />
+                            </button>
+                        </div>
+
+                        {/* USD → COP */}
+                        <div className="flex items-center justify-between py-3">
+                            <div className="flex items-center gap-3">
+                                <DollarSign size={18} className="text-green-400" />
+                                <div>
+                                    <span className="text-sm text-white">USD → COP</span>
+                                    <p className="text-[11px] text-text-muted">Gestiona ingresos en dólares americanos</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    updateUseUsd(!user.useUsd);
+                                    toast.success(user.useUsd ? 'USD → COP desactivado' : 'USD → COP activado');
+                                }}
+                                className={`relative w-14 h-7 rounded-full transition-colors ${user.useUsd ? 'bg-acid' : 'bg-white/10'}`}
+                            >
+                                <div className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-lg transition-transform ${user.useUsd ? 'translate-x-7' : 'translate-x-0.5'}`} />
                             </button>
                         </div>
                     </div>

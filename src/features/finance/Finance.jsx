@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wallet, Clock, CreditCard, Scale, Plus, Trash2, Pencil, Check,
   ChevronUp, ChevronDown, Calendar, ArrowRightLeft, BarChart3,
-  TrendingUp, Shield, ShoppingCart, Bell, Lock, ArrowLeftRight,
+  TrendingUp, TrendingDown, Shield, ShoppingCart, Bell, Lock, ArrowLeftRight,
   AlertTriangle, Save, ChevronRight, Database, RefreshCw, Loader2,
+  DollarSign, Euro,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -48,13 +49,11 @@ const monthKeyOf = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1
 
 const Finance = () => {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState('ingreso');
-  const { loading, currentBudget, MONTHS_LONG } = useMonthlyTracker();
+  const [activeTab, setActiveTab] = useState('resumen');
+  const { loading, currentBudget, calculations, MONTHS_LONG } = useMonthlyTracker();
 
   const TABS = [
-    { id: 'ingreso', label: t('finance.ingreso'), icon: ArrowRightLeft },
-    { id: 'gastos', label: t('finance.gastos'), icon: ArrowLeftRight },
-    { id: 'historial', label: t('finance.historial'), icon: BarChart3 },
+    { id: 'resumen', label: 'Ingresos y Gastos', icon: ArrowRightLeft },
     { id: 'liquidez', label: t('finance.liquidez'), icon: Scale },
   ];
 
@@ -96,6 +95,7 @@ const Finance = () => {
         subtitle={label}
       />
 
+      {/* === STAT CARDS === */}
       <div className="flex gap-1 bg-[var(--bg-input)] rounded-xl p-1 overflow-x-auto">
         {TABS.map((tab) => {
           const Icon = tab.icon;
@@ -125,9 +125,7 @@ const Finance = () => {
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'ingreso' && <IncomeTab />}
-          {activeTab === 'gastos' && <ExpensesTab />}
-          {activeTab === 'historial' && <HistoryTab />}
+          {activeTab === 'resumen' && <TrackerTab />}
           {activeTab === 'liquidez' && <LiquidityTab />}
         </motion.div>
       </AnimatePresence>
@@ -312,34 +310,196 @@ const StatusBulb = ({ status, onClick, readOnly = false }) => (
   <button
     onClick={readOnly ? undefined : onClick}
     disabled={readOnly}
-    className={`w-4 h-4 rounded-full transition-all duration-300 ${status === 1 ? 'bg-green-500' : status === 2 ? 'bg-red-500' : 'bg-zinc-700 shadow-none'} ${readOnly ? 'cursor-default' : 'cursor-pointer hover:scale-110'}`}
+    className={`w-4 h-4 rounded-full transition-all duration-300 ${status === 1 ? 'bg-[#22c55e]' : status === 2 ? 'bg-red-500' : 'bg-zinc-700 shadow-none'} ${readOnly ? 'cursor-default' : 'cursor-pointer hover:scale-110'}`}
     style={status === 1 ? { boxShadow: '0 0 15px rgba(34,197,94,0.6)' } : status === 2 ? { boxShadow: '0 0 15px rgba(239,68,68,0.6)' } : {}}
   />
 );
 
+const DashboardSection = ({ title, children, onEdit, isEditing, onAdd, isComplete = false }) => {
+  return (
+    <div className="relative group">
+      <div
+        className={`glass-card p-5 lg:p-6 transition-all duration-500 
+        ${isComplete
+            ? 'border-[#22c55e]/30 shadow-[0_0_15px_rgba(34,197,94,0.05)]'
+            : 'hover:border-white/20'
+          }`}
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h3 
+            className={`font-display font-bold text-sm tracking-wide uppercase transition-colors duration-300 ${isComplete ? 'text-[#22c55e]' : 'text-[var(--text-primary)]'}`}
+            style={isComplete ? { filter: 'drop-shadow(0 0 8px rgba(34,197,94,0.4))' } : {}}
+          >
+            {title}
+          </h3>
+          {isEditing && onAdd && (
+            <button
+              onClick={onAdd}
+              className="p-1 rounded-full bg-[#22c55e]/10 text-[#22c55e] hover:bg-[#22c55e]/20 transition-colors"
+              title="Agregar Item"
+            >
+              <Plus size={18} />
+            </button>
+          )}
+        </div>
+        <div className="space-y-0">
+          {children}
+        </div>
+      </div>
+      {onEdit && (
+        <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+          <button
+            onClick={onEdit}
+            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-lg transition-all ${isEditing ? 'bg-[#22c55e] text-black' : 'bg-[var(--bg-card-solid)] text-[var(--text-primary)] border border-[var(--border-card)] hover:bg-[var(--bg-input)]'}`}
+          >
+            {isEditing ? <Check size={12} /> : <Pencil size={10} />}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
-function IncomeTab() {
+const ListHeader = ({ showCategory = false }) => (
+  <div className="flex items-center gap-1.5 sm:gap-2 px-2 -mx-2 mb-2">
+    <div className="w-[16px]"></div>
+    <div className="flex-1 grid grid-cols-12 gap-1 items-center">
+      <div className={`${showCategory ? "col-span-5" : "col-span-7"} text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider pl-1`}>Concepto</div>
+      {showCategory && <div className="col-span-2 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider text-center">Categoría</div>}
+      <div className="col-span-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider text-center">Fecha</div>
+      <div className="col-span-2 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider text-right pr-1">Valor</div>
+    </div>
+  </div>
+);
+
+const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, showCategory = false }) => {
+  return (
+    <div className="flex items-center gap-1.5 sm:gap-2 py-1 border-b border-[var(--border-card)]/50 last:border-b-0 hover:bg-white/5 px-2 -mx-2 rounded-lg transition-colors min-h-[32px]">
+      <div className="shrink-0 flex items-center justify-center h-full">
+        <StatusBulb status={item.status || 0} onClick={onStatusToggle} readOnly={!isEditing} />
+      </div>
+      <div className="flex-1 grid grid-cols-12 gap-1 items-center">
+        <div className={showCategory ? "col-span-5" : "col-span-7"}>
+          {isEditing ? (
+            <input
+              type="text"
+              value={item.name !== undefined ? item.name : item.label || ''}
+              onChange={(e) => onChange(item.id, item.name !== undefined ? 'name' : 'label', e.target.value)}
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[#22c55e]"
+            />
+          ) : (
+            <span className="font-medium text-[var(--text-primary)] text-[11px] truncate block pl-1">{item.name !== undefined ? item.name : item.label || '-'}</span>
+          )}
+        </div>
+        {showCategory && (
+          <div className="col-span-2 text-center flex justify-center">
+            <span className="text-[10px] text-[var(--text-muted)]">—</span>
+          </div>
+        )}
+        <div className="col-span-3 text-center flex justify-center">
+          <span className="text-[10px] text-[var(--text-muted)]">{item.date || 'Jul 01'}</span>
+        </div>
+        <div className="col-span-2 text-right">
+          {isEditing ? (
+            <input
+              type="text"
+              value={item.amount || ''}
+              onChange={(e) => {
+                const rawValue = e.target.value.replace(/\./g, '').replace(/,/g, '');
+                if (!/^\d*$/.test(rawValue)) return;
+                const formatted = rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                onChange(item.id, 'amount', formatted);
+              }}
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] font-medium text-[var(--text-primary)] focus:outline-none focus:border-[#22c55e] text-right"
+            />
+          ) : (
+            <span className="font-bold text-[var(--text-primary)] text-[12px]">{item.amount || '0'}</span>
+          )}
+        </div>
+      </div>
+      {isEditing && (
+        <button
+          onClick={() => canDelete && onDelete(item.id)}
+          disabled={!canDelete}
+          className={`w-6 h-6 flex items-center justify-center shrink-0 rounded transition-colors ml-1 ${canDelete ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : 'text-zinc-700 cursor-not-allowed'}`}
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
+    </div>
+  );
+};
+
+
+
+function TrackerTab() {
+  const { data: financeData, updateDb: updateFinDb } = useFinance();
   const { t } = useLanguage();
   const {
-    currentBudget, calculations, updateBudgetField, formatCurrency, formatCurrencyDec, formatEur,
-    deposits, wiseBalance, currentWithdrawals,
+    currentBudget, calculations, updateBudgetField, formatCurrency, formatCurrencyDec, formatEur, formatUsd,
+    deposits, wiseBalance,
     addDeposit, deleteDeposit,
-    addWithdrawal, updateWithdrawal, deleteWithdrawal,
+    addIncome, updateIncome, deleteIncome, toggleIncomeStatus,
+    fixedExpenses, updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus,
+    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus,
     copyFromPreviousMonth,
     budgets, currentIndex, setCurrentIndex, MONTHS_LONG,
   } = useMonthlyTracker();
   const { user } = useUser();
   const useWise = user.useWise !== false;
-  const { /* display uses displayCalc below */ } = calculations;
+  const useUsd = user.useUsd === true;
+  const { fixedTotal } = calculations;
 
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
-  const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
-  const [wAmount, setWAmount] = useState('');
-  const [wRate, setWRate] = useState('');
-  const [wFee, setWFee] = useState('');
-  const [fetchingRate, setFetchingRate] = useState(false);
-  const [editingWithdrawalId, setEditingWithdrawalId] = useState(null);
+
+  // USD state
+  const [fetchingUsdRate, setFetchingUsdRate] = useState(false);
+  
+  // Income pending edits (local state for instant typing)
+  const [incomeEdits, setIncomeEdits] = useState({});
+
+  const getInc = (inc) => {
+    const edit = incomeEdits[inc.id];
+    return {
+      label: edit?.label ?? inc.label,
+      currency: edit?.currency ?? inc.currency,
+      amount: edit?.amount ?? inc.amount,
+      fee: edit?.fee ?? inc.fee,
+      rate: edit?.rate ?? inc.rate,
+    };
+  };
+
+  const setIncField = (id, field, value) => {
+    setIncomeEdits((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: value },
+    }));
+  };
+
+  const saveInc = (id) => {
+    const edit = incomeEdits[id];
+    if (!edit) return;
+    updateIncome(id, edit);
+    setIncomeEdits((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const saveAllIncEdits = () => {
+    Object.entries(incomeEdits).forEach(([id]) => saveInc(id));
+  };
+  
+  // Dashboard UI State
+  const [uiState, setUiState] = useState({ annual: false, fixedIncome: false, monthlyExpenses: false, variableExpenses: false });
+  const toggleEdit = (section) => {
+    setUiState(prev => ({ ...prev, [section]: !prev[section] }));
+    if (section === 'fixedIncome' && uiState.fixedIncome) {
+      saveAllIncEdits();
+    }
+  };
 
   const [pickerDate, setPickerDate] = useState(() =>
     currentBudget ? new Date(currentBudget.year, currentBudget.month) : new Date()
@@ -359,46 +519,83 @@ function IncomeTab() {
     return budgets.find(b => Number(b.year) === y && Number(b.month) === m) || null;
   }, [budgets, pickerDate]);
 
+  const displayVarTotal = useMemo(() => {
+    if (!selectedBudget) return 0;
+    return (selectedBudget.gastosVar || []).filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+  }, [selectedBudget]);
+
+  const fixedTotalAll = useMemo(() =>
+    fixedExpenses.reduce((s, g) => s + (parseFloat(g.amount) || 0), 0), [fixedExpenses]);
+
+  const varTotalAll = useMemo(() => {
+    if (!selectedBudget) return 0;
+    return (selectedBudget.gastosVar || []).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+  }, [selectedBudget]);
+
   const displayCalc = useMemo(() => {
-    if (!selectedBudget) return { wiseCop: 0, manualCop: 0, cop: 0 };
+    if (!selectedBudget) return { wiseCop: 0, manualCop: 0, usdCop: 0, cop: 0 };
     const b = selectedBudget;
     const wd = b.withdrawals || [];
     const wCop = wd.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0);
     const leg = Math.round((parseFloat(b.salary_eur) - parseFloat(b.wise_fee_eur)) * parseFloat(b.exchange_rate));
     const wiseCop = wd.length > 0 ? wCop : (parseFloat(b.salary_eur) > 0 ? leg : 0);
     const manualCop = Math.round(parseFloat(b.manual_income_cop) || 0);
-    return { wiseCop, manualCop, cop: wiseCop + manualCop, hasWithdrawals: wd.length > 0 };
+    const usdAmt = parseFloat(b.usd_amount) || 0;
+    const usdR = parseFloat(b.usd_rate) || 0;
+    const usdF = parseFloat(b.usd_fee) || 0;
+    const usdCop = Math.round((usdAmt - usdF) * usdR);
+    return { wiseCop, manualCop, usdCop, cop: wiseCop + manualCop + usdCop, hasWithdrawals: wd.length > 0 };
   }, [selectedBudget]);
-
-  // ── Wise rate auto-fetch ──
-  const fetchWiseRate = async (amount) => {
-    if (!amount || parseFloat(amount) <= 0) return;
-    setFetchingRate(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('get-wise-rate', {
-        body: { amount: parseFloat(amount) },
-      });
-      if (error) throw error;
-      if (data?.rate) setWRate(data.rate.toString());
-    } catch (err) {
-      console.error('Error fetching Wise rate:', err);
-      toast.error(t('finance.tasaNoDisponible'));
-    } finally {
-      setFetchingRate(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showWithdrawalForm && !wRate && !wFee) {
-      fetchWiseRate(wAmount || '300');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showWithdrawalForm]);
 
   // ── Total deposited EUR (global, for wiseBalance) ──
   const totalDeposited = deposits.reduce((s, d) => s + (parseFloat(d.amount_eur) || 0), 0);
-  const totalWithdrawnEur = currentWithdrawals.reduce((s, w) => s + (parseFloat(w.amount_eur) || 0), 0);
-  const totalFees = currentWithdrawals.reduce((s, w) => s + (parseFloat(w.fee_eur) || 0), 0);
+
+  // USD rate auto-fetch
+  const fetchUsdRate = async () => {
+    setFetchingUsdRate(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-exchange-rate', {
+        body: { source: 'USD' },
+      });
+      if (error) throw error;
+      if (data?.rate) {
+        updateBudgetField('usd_rate', data.rate);
+      }
+    } catch (err) {
+      console.error('Error fetching USD rate:', err);
+      toast.error('No se pudo obtener la tasa USD → COP');
+    } finally {
+      setFetchingUsdRate(false);
+    }
+  };
+
+  // Auto-fetch rate when currency changes to EUR/USD
+  const handleCurrencyChange = async (inc, newCurrency) => {
+    updateIncome(inc.id, { currency: newCurrency });
+    if (newCurrency === 'EUR') {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-wise-rate', {
+          body: { amount: parseFloat(inc.amount) || 300 },
+        });
+        if (!error && data?.rate) {
+          updateIncome(inc.id, { rate: data.rate.toString() });
+        }
+      } catch (err) {
+        console.error('Error fetching EUR rate:', err);
+      }
+    } else if (newCurrency === 'USD') {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-exchange-rate', {
+          body: { source: 'USD' },
+        });
+        if (!error && data?.rate) {
+          updateIncome(inc.id, { rate: data.rate.toString() });
+        }
+      } catch (err) {
+        console.error('Error fetching USD rate:', err);
+      }
+    }
+  };
 
   const handleAddDeposit = () => {
     const val = parseFloat(depositAmount) || 0;
@@ -408,31 +605,6 @@ function IncomeTab() {
     setShowDepositForm(false);
   };
 
-  const handleAddWithdrawal = () => {
-    const amount = parseFloat(wAmount) || 0;
-    const rate = parseFloat(wRate) || 0;
-    const fee = parseFloat(wFee) || 0;
-    if (amount <= 0 || rate <= 0) return;
-    if (editingWithdrawalId) {
-      updateWithdrawal(editingWithdrawalId, { amount_eur: amount, exchange_rate: rate, fee_eur: fee });
-    } else {
-      if (amount > wiseBalance) return;
-      addWithdrawal(amount, rate, fee);
-    }
-    setWAmount('');
-    setWRate('');
-    setWFee('');
-    setShowWithdrawalForm(false);
-    setEditingWithdrawalId(null);
-  };
-
-  const handleEditWithdrawal = (w) => {
-    setEditingWithdrawalId(w.id);
-    setWAmount(String(w.amount_eur));
-    setWRate(String(w.exchange_rate));
-    setWFee(String(w.fee_eur));
-    setShowWithdrawalForm(true);
-  };
 
   useEffect(() => {
     if (currentBudget) {
@@ -441,13 +613,45 @@ function IncomeTab() {
   }, [currentBudget]);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="max-w-6xl mx-auto space-y-4">
+      {/* === STAT CARDS === */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard
+          title={t('Ingresos Totales')}
+          amount={displayCalc.cop ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(displayCalc.cop) : '$0'}
+          icon={DollarSign}
+          colorTheme="green"
+          trend={0}
+        />
+        <StatCard
+          title={t('finance.gastosFijos') || 'Gastos Fijos'}
+          amount={fixedTotal ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(fixedTotal) : '$0'}
+          icon={TrendingDown}
+          colorTheme="red"
+          trend={0}
+        />
+        <StatCard
+          title={t('finance.gastosVariables') || 'Gastos Variables'}
+          amount={displayVarTotal ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(displayVarTotal) : '$0'}
+          icon={TrendingDown}
+          colorTheme="orange"
+          trend={0}
+        />
+        <StatCard
+          title="Disponible"
+          amount={(displayCalc.cop - fixedTotal - displayVarTotal) ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(displayCalc.cop - fixedTotal - displayVarTotal) : '$0'}
+          icon={Wallet}
+          colorTheme="blue"
+          subtitle="Saldo del mes"
+        />
+      </div>
+
       {/* === MONTH PICKER === */}
       <div className="flex justify-center">
         <DatePicker selectedDate={pickerDate} onChange={handleMonthChange} monthOnly={true} />
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mb-4">
         <button
           onClick={() => copyFromPreviousMonth()}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[var(--bg-input)] text-[var(--text-muted)] border border-[var(--border-card)] rounded-lg hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all"
@@ -457,344 +661,16 @@ function IncomeTab() {
         </button>
       </div>
 
-      {/* === WISE === */}
-      {useWise && (
-      <div className="glass-card p-5">
-        <div className="flex justify-between items-center mb-4">
-          <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">{t('finance.wiseSection')}</p>
-          {displayCalc.wiseCop > 0 && <span className="text-sm font-medium" style={{ color: COLORS.savings }}>{formatCurrencyDec(displayCalc.wiseCop)}</span>}
-        </div>
-
-        {/* Saldo Wise */}
-        <div className="flex justify-between items-center mb-3 pb-3 border-b border-[var(--border-card)]">
-          <span className="text-sm text-[var(--text-muted)]">{t('finance.saldoWise')}</span>
-          <span className="text-base font-medium" style={{ color: wiseBalance > 0 ? '#378ADD' : 'var(--text-muted)' }}>
-            {formatEur(wiseBalance)}
-          </span>
-        </div>
-
-        {/* Depósitos */}
-        <div className="space-y-1 mb-3">
-          {deposits.length === 0 && !showDepositForm && (
-            <p className="text-sm text-[var(--text-muted)] py-2">{t('finance.sinDepositos')}</p>
-          )}
-          {deposits.map((d) => (
-            <div key={d.id} className="flex justify-between items-center py-2 border-b border-[var(--border-card)] last:border-b-0 group">
-              <div className="flex items-center gap-2">
-                <ArrowRightLeft size={14} className="text-blue-400" />
-                <div>
-                  <span className="text-sm text-[var(--text-primary)]">{formatEur(d.amount_eur)}</span>
-                  <span className="text-xs text-[var(--text-muted)] ml-2">{d.deposit_date}</span>
-                </div>
-              </div>
-              <button onClick={() => deleteDeposit(d.id)} className="p-1.5 text-red-400/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
-                <Trash2 size={13} />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {showDepositForm ? (
-          <div className="flex gap-2 mb-3">
-            <input type="number" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="€0.00" className="flex-1 bg-[var(--bg-card-solid)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" autoFocus />
-            <button onClick={handleAddDeposit} className="px-4 py-2 bg-acid text-black rounded-lg text-sm font-medium">{t('finance.ok')}</button>
-            <button onClick={() => setShowDepositForm(false)} className="px-3 py-2 bg-[var(--bg-input)] text-[var(--text-muted)] rounded-lg text-sm">{t('finance.cancelar')}</button>
-          </div>
-        ) : (
-          <button onClick={() => setShowDepositForm(true)} className="w-full py-2 text-sm font-medium bg-[var(--bg-input)] text-[var(--text-primary)] border border-dashed border-[var(--border-card)] rounded-lg hover:bg-[var(--bg-card-solid)] transition-colors flex items-center justify-center gap-2">
-            <Plus size={14} /> {t('finance.agregarDeposito')}
-          </button>
-        )}
-      </div>
-      )}
-
-      {/* Retiros */}
-      {useWise && (
-      <div className="glass-card p-5">
-        <div className="flex justify-between items-center mb-4">
-          <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">{t('finance.retiros')}</p>
-          {displayCalc.wiseCop > 0 && <span className="text-sm font-medium" style={{ color: COLORS.savings }}>{formatCurrencyDec(displayCalc.wiseCop)}</span>}
-        </div>
-
-        {displayCalc.hasWithdrawals ? (
-          <div className="space-y-2 mb-3">
-            {(selectedBudget?.withdrawals || []).map((w) => {
-              const copVal = parseFloat(w.cop_received) || 0;
-              const rate = parseFloat(w.exchange_rate) || 0;
-              const fee = parseFloat(w.fee_eur) || 0;
-              const amount = parseFloat(w.amount_eur) || 0;
-              return (
-                <div key={w.id} className="bg-[var(--bg-input)] rounded-lg p-3 group">
-                  <div className="flex justify-between items-start mb-1">
-                    <div>
-                      <span className="text-sm text-[var(--text-primary)] font-medium">{formatEur(amount)}</span>
-                      <span className="text-xs text-[var(--text-muted)] ml-2">× {rate.toFixed(2)}</span>
-                      {fee > 0 && <span className="text-xs text-red-400 ml-2">−{formatEur(fee)}</span>}
-                    </div>
-                    <span className="text-sm font-medium" style={{ color: COLORS.savings }}>{formatCurrencyDec(copVal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] text-[var(--text-muted)]">{w.withdrawal_date}</span>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleEditWithdrawal(w)} className="p-1 text-text-muted/50 hover:text-blue-400 transition-colors">
-                        <Pencil size={12} />
-                      </button>
-                      <button onClick={() => deleteWithdrawal(w.id)} className="p-1 text-red-400/50 hover:text-red-400 transition-colors">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--text-muted)] py-2 mb-3">{t('finance.sinRetiros')}</p>
-        )}
-
-        {showWithdrawalForm ? (
-          <div className="space-y-3 mb-3">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-[11px] text-[var(--text-muted)] block mb-1">{t('finance.eurAConvertir')}</label>
-                <input type="number" step="0.01" value={wAmount} onChange={(e) => setWAmount(e.target.value)} placeholder={`${t('finance.max')} ${formatEur(wiseBalance)}`} className="w-full bg-[var(--bg-card-solid)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" autoFocus />
-              </div>
-              <div className="flex-1">
-                <label className="text-[11px] text-[var(--text-muted)] block mb-1 flex items-center justify-between">
-                  <span>{t('finance.tasaCop')}</span>
-                  <button onClick={() => fetchWiseRate(wAmount)} disabled={fetchingRate} className="text-[10px] text-blue-400 hover:text-blue-300 disabled:opacity-40 flex items-center gap-1">
-                    {fetchingRate ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} {t('finance.auto')}
-                  </button>
-                </label>
-                <input type="number" step="0.01" value={wRate} onChange={(e) => setWRate(e.target.value)} placeholder="3706.00" className="w-full bg-[var(--bg-card-solid)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-[11px] text-[var(--text-muted)] block mb-1 flex items-center justify-between">
-                  <span>{t('finance.comisionEur')}</span>
-                </label>
-                <input type="number" step="0.01" value={wFee} onChange={(e) => setWFee(e.target.value)} placeholder="0.00" className="w-full bg-[var(--bg-card-solid)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
-              </div>
-              <div className="flex items-end gap-2">
-                {wAmount && wRate && (
-                  <span className="text-sm font-medium pb-2" style={{ color: COLORS.savings }}>
-                    = {formatCurrencyDec(((parseFloat(wAmount) || 0) - (parseFloat(wFee) || 0)) * (parseFloat(wRate) || 0))}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={handleAddWithdrawal} className="flex-1 py-2 bg-acid text-black rounded-lg text-sm font-medium">
-                {editingWithdrawalId ? 'Actualizar retiro' : t('finance.agregarRetiro')}
-              </button>
-              <button onClick={() => { setShowWithdrawalForm(false); setEditingWithdrawalId(null); setWAmount(''); setWRate(''); setWFee(''); }} className="px-4 py-2 bg-[var(--bg-input)] text-[var(--text-muted)] rounded-lg text-sm">{t('finance.cancelar')}</button>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => { setShowWithdrawalForm(true); setEditingWithdrawalId(null); }} disabled={wiseBalance <= 0} className="w-full py-2 text-sm font-medium bg-[var(--bg-input)] text-[var(--text-primary)] border border-dashed border-[var(--border-card)] rounded-lg hover:bg-[var(--bg-card-solid)] transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
-            <Plus size={14} /> {t('finance.nuevoRetiro')}
-          </button>
-        )}
-      </div>
-      )}
-
-      {/* === MANUAL COP === */}
-      <div className="glass-card p-5">
-        <div className="flex justify-between items-center mb-4">
-          <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">{t('finance.manualCopSection')}</p>
-          {displayCalc.manualCop > 0 && <span className="text-sm font-medium" style={{ color: COLORS.savings }}>{formatCurrency(displayCalc.manualCop)}</span>}
-        </div>
-        <div className="flex justify-between items-center py-3">
-          <div className="flex-1 pr-4">
-            <p className="text-sm text-[var(--text-primary)]">{t('finance.otrosIngresos')}</p>
-            <p className="text-[11px] text-[var(--text-muted)] opacity-70">{t('finance.freelance')}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--text-muted)]">$</span>
-            <input type="number" value={selectedBudget ? (currentBudget.manual_income_cop || 0) : 0} onChange={(e) => selectedBudget && updateBudgetField('manual_income_cop', parseFloat(e.target.value) || 0)} className="w-40 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] text-right focus:outline-none focus:border-[var(--border-hover)]" disabled={!selectedBudget} />
-          </div>
-        </div>
-      </div>
-
-      {/* === TOTAL === */}
-      <div className="glass-card p-5">
-        <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">{t('finance.resumenIngresos')}</p>
-        <div className="space-y-2">
-          {useWise && displayCalc.wiseCop > 0 && <Row label="Wise (EUR → COP)" value={formatCurrencyDec(displayCalc.wiseCop)} color={COLORS.savings} />}
-          {useWise && displayCalc.wiseCop > 0 && <Row label="Saldo en Wise" value={formatEur(wiseBalance)} color="#378ADD" />}
-          {displayCalc.manualCop > 0 && <Row label="Manual (COP)" value={formatCurrency(displayCalc.manualCop)} color={COLORS.savings} />}
-          <div className="flex justify-between items-center pt-2 border-t border-[var(--border-card)]">
-            <span className="text-sm font-medium text-[var(--text-primary)]">Total COP del mes</span>
-            <span className="text-xl font-medium" style={{ color: COLORS.savings }}>{formatCurrency(displayCalc.cop)}</span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  );
-}
-
-function ExpensesTab() {
-  const { t } = useLanguage();
-  const [subtab, setSubtab] = useState('fijos');
-  const {
-    currentBudget, fixedExpenses, calculations, formatCurrency,
-    updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus,
-    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus,
-    copyFromPreviousMonth,
-    budgets, currentIndex, setCurrentIndex, MONTHS_LONG,
-  } = useMonthlyTracker();
-  const { data: financeData, updateDb: updateFinDb } = useFinance();
-  const { fixedTotal } = calculations;
-
-  const isFixed = subtab === 'fijos';
-  const isVariable = subtab === 'variables';
-  const isAnuales = subtab === 'anuales';
-
-  const [pickerDate, setPickerDate] = useState(() =>
-    currentBudget ? new Date(currentBudget.year, currentBudget.month) : new Date()
-  );
-
-  useEffect(() => {
-    if (currentBudget) {
-      setPickerDate(new Date(currentBudget.year, currentBudget.month));
-    }
-  }, [currentBudget]);
-
-  const handleMonthChange = (newDate) => {
-    setPickerDate(newDate);
-    const y = newDate.getFullYear();
-    const m = newDate.getMonth();
-    const idx = budgets.findIndex(b => Number(b.year) === y && Number(b.month) === m);
-    if (idx >= 0) setCurrentIndex(idx);
-  };
-
-  const selectedBudget = useMemo(() => {
-    const y = pickerDate.getFullYear();
-    const m = pickerDate.getMonth();
-    return budgets.find(b => Number(b.year) === y && Number(b.month) === m) || null;
-  }, [budgets, pickerDate]);
-
-  const displayVarTotal = useMemo(() => {
-    if (!selectedBudget) return 0;
-    return (selectedBudget.gastosVar || []).filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
-  }, [selectedBudget]);
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      {/* === MONTH PICKER === */}
-      <div className="flex justify-center">
-        <DatePicker selectedDate={pickerDate} onChange={handleMonthChange} monthOnly={true} />
-      </div>
-
-      <div className="flex gap-1 bg-[var(--bg-input)] rounded-xl p-1">
-        <button onClick={() => setSubtab('fijos')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-all ${isFixed ? 'bg-[var(--bg-card-solid)] text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
-          <Lock size={12} /> {t('finance.fijos')} — {formatCurrency(fixedTotal)}
-        </button>
-        <button onClick={() => setSubtab('variables')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-all ${isVariable ? 'bg-[var(--bg-card-solid)] text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
-          <ArrowLeftRight size={12} /> {t('finance.variables')} — {formatCurrency(displayVarTotal)}
-        </button>
-        <button onClick={() => setSubtab('anuales')} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-all ${isAnuales ? 'bg-[var(--bg-card-solid)] text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
-          <Calendar size={12} /> Anuales
-        </button>
-      </div>
-
-      {(isFixed || isVariable) && (
-        <>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => copyFromPreviousMonth()}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[var(--bg-input)] text-[var(--text-muted)] border border-[var(--border-card)] rounded-lg hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all"
-            >
-              <Database size={12} />
-              Copiar del mes anterior · neutro
-            </button>
-          </div>
-
-          <div className="glass-card p-5">
-            <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-2">{isFixed ? t('finance.gastosFijos') : t('finance.gastosVariables')}</p>
-            <p className="text-xs text-[var(--text-muted)] mb-4">{isFixed ? 'Se cargan a la tarjeta de crédito y se pagan de contado.' : 'Mercado, salidas, compras puntuales, lo que varíe mes a mes.'}</p>
-            <div className="space-y-2">
-              {(isFixed ? fixedExpenses : selectedBudget?.gastosVar || []).map((item) => (
-                <div key={item.id} className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
-                  <StatusBulb
-                    status={item.status || 0}
-                    onClick={() => isFixed ? toggleFixedExpenseStatus(item.id) : toggleVariableExpenseStatus(item.id)}
-                  />
-                  <input type="text" value={item.label} onChange={(e) => isFixed ? updateFixedExpense(item.id, 'label', e.target.value) : updateVariableExpense(item.id, 'label', e.target.value)} placeholder="Nombre" className="flex-1 min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-2 sm:px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
-                  <input type="number" value={item.amount} onChange={(e) => isFixed ? updateFixedExpense(item.id, 'amount', e.target.value) : updateVariableExpense(item.id, 'amount', e.target.value)} className="w-20 sm:w-28 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-2 sm:px-3 py-2 text-sm text-[var(--text-primary)] text-right focus:outline-none focus:border-[var(--border-hover)]" />
-                  <button onClick={() => isFixed ? deleteFixedExpense(item.id) : deleteVariableExpense(item.id)} className="p-1.5 sm:p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0" aria-label={t('finance.eliminar')}>
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button onClick={isFixed ? addFixedExpense : addVariableExpense} disabled={!isFixed && !selectedBudget} className="w-full mt-4 py-2.5 text-sm font-medium bg-[var(--bg-input)] text-[var(--text-primary)] border border-dashed border-[var(--border-card)] rounded-lg hover:bg-[var(--bg-card-solid)] transition-colors flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed">
-              <Plus size={14} /> {t('finance.nuevoGasto')} {isFixed ? 'fijo' : 'variable'}
-            </button>
-          </div>
-
-          <div className="glass-card p-5">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-[var(--text-primary)]">Total {isFixed ? t('finance.fijos').toLowerCase() : t('finance.variables').toLowerCase()}</span>
-              <span className="text-lg font-medium" style={{ color: COLORS.expenses }}>{formatCurrency(isFixed ? fixedTotal : displayVarTotal)}</span>
-            </div>
-          </div>
-          <div className="bg-[var(--bg-input)] rounded-xl p-4 flex justify-between items-center">
-            <span className="text-sm text-[var(--text-muted)]">Total gastos del mes</span>
-            <span className="text-base font-medium" style={{ color: COLORS.expenses }}>{formatCurrency(fixedTotal + displayVarTotal)}</span>
-          </div>
-        </>
-      )}
-
-      {isAnuales && (
-        <div className="glass-card p-5">
-          <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-2">Gastos anuales</p>
-          <p className="text-xs text-[var(--text-muted)] mb-4">Impuestos, seguros, suscripciones y otros gastos que se pagan una vez al año.</p>
-          <div className="space-y-2">
-            {(financeData.annual || []).map((item) => (
-              <div key={item.id} className="flex items-center gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
-                <StatusBulb
-                  status={item.status || 0}
-                  onClick={() => {
-                    const next = ((item.status || 0) + 1) % 3;
-                    updateFinDb('annual', 'update', { id: item.id, field: 'status', value: next });
-                  }}
-                />
-                <input
-                  type="text"
-                  value={item.name}
-                  onChange={(e) => updateFinDb('annual', 'update', { id: item.id, field: 'name', value: e.target.value })}
-                  placeholder="Nombre"
-                  className="flex-1 min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]"
-                />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={item.amount}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\./g, '').replace(/,/g, '');
-                    if (!/^\d*$/.test(raw)) return;
-                    const formatted = raw.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-                    updateFinDb('annual', 'update', { id: item.id, field: 'amount', value: formatted });
-                  }}
-                  className="w-28 bg-[var(--bg-input)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] text-right focus:outline-none focus:border-[var(--border-hover)]"
-                />
-                <button
-                  onClick={() => updateFinDb('annual', 'delete', { id: item.id })}
-                  className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0"
-                  aria-label={t('finance.eliminar')}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={() => {
-              const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* === LEFT COLUMN === */}
+        <div className="space-y-6">
+          <DashboardSection
+            title="Gastos Anuales"
+            isEditing={uiState.annual}
+            onEdit={() => toggleEdit('annual')}
+            onAdd={() => {
               const d = new Date();
+              const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
               const m = months[d.getMonth()];
               const day = String(d.getDate()).padStart(2, '0');
               updateFinDb('annual', 'add', {
@@ -805,13 +681,236 @@ function ExpensesTab() {
                 status: 0,
               });
             }}
-            className="w-full mt-4 py-2.5 text-sm font-medium bg-[var(--bg-input)] text-[var(--text-primary)] border border-dashed border-[var(--border-card)] rounded-lg hover:bg-[var(--bg-card-solid)] transition-colors flex items-center justify-center gap-2"
+            isComplete={financeData?.annual?.length > 0 && financeData.annual.every(item => item.status === 1)}
           >
-            <Plus size={14} /> Agregar gasto anual
-          </button>
+            <ListHeader />
+            {financeData?.annual?.map((item) => (
+              <TransactionRow
+                key={item.id}
+                item={item}
+                isEditing={uiState.annual}
+                onChange={(id, field, val) => updateFinDb('annual', 'update', { id, field, value: val })}
+                onDelete={(id) => updateFinDb('annual', 'delete', { id })}
+                onStatusToggle={() => {
+                  const next = ((item.status || 0) + 1) % 3;
+                  updateFinDb('annual', 'update', { id: item.id, field: 'status', value: next });
+                }}
+                canDelete={true}
+              />
+            ))}
+          </DashboardSection>
+          
+          
+          {/* === INGRESOS === */}
+          {/* === INGRESOS === */}
+          <DashboardSection title="Ingresos Fijos" isEditing={uiState.fixedIncome} onEdit={() => toggleEdit('fixedIncome')} onAdd={() => addIncome({ label: 'Nuevo ingreso', currency: 'COP', amount: '0', status: 0 })} isComplete={(currentBudget?.incomes || []).length > 0 && (currentBudget?.incomes || []).every(i => i.status === 1)}>
+            {uiState.fixedIncome && (
+              <div className="flex items-center gap-1.5 sm:gap-2 px-1 mb-1 -mt-2">
+                <div className="w-4 shrink-0" />
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">Moneda</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Monto</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[60px] shrink-0 text-right">Comisión</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Tasa</span>
+                <div className="w-9 shrink-0" />
+              </div>
+            )}
+            <div className="space-y-1">
+              {(currentBudget?.incomes || []).map((inc) => {
+                const local = uiState.fixedIncome ? getInc(inc) : inc;
+                const copPreview = local.currency === 'COP'
+                  ? parseFloat(local.amount) || 0
+                  : Math.round(((parseFloat(local.amount) || 0) - (parseFloat(local.fee) || 0)) * (parseFloat(local.rate) || 0));
+                return (
+                  <div key={inc.id} className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
+                    <StatusBulb status={inc.status || 0} onClick={() => toggleIncomeStatus(inc.id)} />
+                    {uiState.fixedIncome ? (
+                      <>
+                        <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] flex-1" />
+                        <div className="flex gap-0.5 bg-[var(--bg-input)] rounded overflow-hidden shrink-0">
+                          {[
+                            { label: 'COP', value: 'COP' },
+                            ...(useWise ? [{ label: 'EUR', value: 'EUR' }] : []),
+                            ...(useUsd ? [{ label: 'USD', value: 'USD' }] : []),
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => handleCurrencyChange(inc, opt.value)}
+                              className={`px-2 py-1 text-[11px] font-medium transition-colors ${
+                                local.currency === opt.value
+                                  ? 'bg-acid text-black'
+                                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <input type="text" inputMode="decimal" value={local.amount} onChange={(e) => {
+                          const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                          setIncField(inc.id, 'amount', v);
+                        }} onBlur={() => saveInc(inc.id)} placeholder="0" className="w-20 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                        {local.currency !== 'COP' && (
+                          <>
+                            <input type="text" inputMode="decimal" value={local.fee} onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                              setIncField(inc.id, 'fee', v);
+                            }} onBlur={() => saveInc(inc.id)} placeholder="Fee" className="w-[60px] bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                            <input type="text" inputMode="decimal" value={local.rate} onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                              setIncField(inc.id, 'rate', v);
+                            }} onBlur={() => saveInc(inc.id)} placeholder="Tasa" className="w-20 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                          </>
+                        )}
+                        <button onClick={() => deleteIncome(inc.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0"><Trash2 size={13} /></button>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-between min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px] text-[var(--text-primary)] font-medium truncate">{local.label}</span>
+                          <span className="text-[10px] text-[var(--text-muted)] shrink-0">{local.currency}</span>
+                          {copPreview > 0 && (
+                            <span className="text-[11px] font-medium shrink-0" style={{ color: COLORS.savings }}>
+                              {formatCurrencyDec(copPreview)}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-[var(--text-muted)]">
+                          {local.currency === 'COP' ? formatCurrency(local.amount) : `${local.amount} ${local.currency}`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Wise deposits (global) */}
+            {useWise && (
+              <div className="mt-6 pt-4 border-t border-[var(--border-card)]">
+                <div className="flex justify-between items-center mb-3">
+                  <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">{t('finance.wiseSection')}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--text-muted)]">Saldo</span>
+                    <span className="text-sm font-medium" style={{ color: wiseBalance > 0 ? '#378ADD' : 'var(--text-muted)' }}>{formatEur(wiseBalance)}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {deposits.length === 0 && !showDepositForm && (
+                    <p className="text-sm text-[var(--text-muted)] py-2">{t('finance.sinDepositos')}</p>
+                  )}
+                  {deposits.map((d) => (
+                    <div key={d.id} className="flex justify-between items-center py-1.5 group">
+                      <div className="flex items-center gap-2">
+                        <ArrowRightLeft size={12} className="text-blue-400" />
+                        <span className="text-sm text-[var(--text-primary)]">{formatEur(d.amount_eur)}</span>
+                        <span className="text-xs text-[var(--text-muted)]">{d.deposit_date}</span>
+                      </div>
+                      <button onClick={() => deleteDeposit(d.id)} className="p-1 text-red-400/50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={10} /></button>
+                    </div>
+                  ))}
+                </div>
+                {showDepositForm ? (
+                  <div className="flex gap-2 mt-2">
+                    <input type="number" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="€0.00" className="flex-1 bg-[var(--bg-card-solid)] border border-[var(--border-card)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" autoFocus />
+                    <button onClick={handleAddDeposit} className="px-4 py-2 bg-acid text-black rounded-lg text-sm font-medium">{t('finance.ok')}</button>
+                    <button onClick={() => setShowDepositForm(false)} className="px-3 py-2 bg-[var(--bg-input)] text-[var(--text-muted)] rounded-lg text-sm">{t('finance.cancelar')}</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowDepositForm(true)} className="w-full py-2 text-sm font-medium bg-[var(--bg-input)] text-[var(--text-primary)] border border-dashed border-[var(--border-card)] rounded-lg hover:bg-[var(--bg-card-solid)] transition-colors flex items-center justify-center gap-2 mt-2">
+                    <Plus size={14} /> {t('finance.agregarDeposito')}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Total summary */}
+            <div className="mt-6 pt-4 border-t border-[var(--border-card)]">
+              <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">{t('finance.resumenIngresos')}</p>
+              <div className="space-y-2">
+                {(currentBudget?.incomes || []).filter((i) => (i.status || 0) === 1).map((inc) => {
+                  const copValue = inc.currency === 'COP'
+                    ? parseFloat(inc.amount) || 0
+                    : Math.round(((parseFloat(inc.amount) || 0) - (parseFloat(inc.fee) || 0)) * (parseFloat(inc.rate) || 0));
+                  if (copValue <= 0) return null;
+                  return <Row key={inc.id} label={`${inc.label} (${inc.currency})`} value={formatCurrencyDec(copValue)} color={COLORS.savings} />;
+                })}
+                <div className="flex justify-between items-center pt-4 border-t border-[var(--border-card)]/50 mt-4">
+                  <span className="text-xs font-medium text-[var(--text-muted)]">Total Ingresos <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>
+                  <span className="text-sm font-bold text-[var(--text-primary)]">{formatCurrency(displayCalc.cop)}</span>
+                </div>
+              </div>
+            </div>
+          </DashboardSection>
+          </div>
+  {/* === RIGHT COLUMN === */}
+        <div className="space-y-6">
+          <DashboardSection
+            title="Gastos Fijos Mensuales"
+            isEditing={uiState.monthlyExpenses}
+            onEdit={() => toggleEdit('monthlyExpenses')}
+            onAdd={addFixedExpense}
+            isComplete={fixedExpenses?.length > 0 && fixedExpenses.every(item => item.status === 1)}
+          >
+            <ListHeader showCategory={true} />
+            <div className="space-y-0">
+              {fixedExpenses.map((item) => (
+                <TransactionRow
+                  key={item.id}
+                  item={item}
+                  isEditing={uiState.monthlyExpenses}
+                  onChange={(id, field, val) => updateFixedExpense(id, field, val)}
+                  onDelete={deleteFixedExpense}
+                  onStatusToggle={() => toggleFixedExpenseStatus(item.id)}
+                  canDelete={true}
+                  showCategory={true}
+                />
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
+              <span className="text-xs font-medium text-[var(--text-muted)]">Total Fijos <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>
+              <span className="text-sm font-bold text-[var(--text-primary)]">{formatCurrency(fixedTotalAll)}</span>
+            </div>
+          </DashboardSection>
+
+          
+          
+          <DashboardSection
+            title="Gastos Variables Mensuales"
+            isEditing={uiState.variableExpenses}
+            onEdit={() => toggleEdit('variableExpenses')}
+            onAdd={addVariableExpense}
+            isComplete={(selectedBudget?.gastosVar || []).length > 0 && (selectedBudget?.gastosVar || []).every(item => item.status === 1)}
+          >
+            <ListHeader />
+            <div className="space-y-0">
+              {(selectedBudget?.gastosVar || []).map((item) => (
+                <TransactionRow
+                  key={item.id}
+                  item={item}
+                  isEditing={uiState.variableExpenses}
+                  onChange={(id, field, val) => updateVariableExpense(id, field, val)}
+                  onDelete={deleteVariableExpense}
+                  onStatusToggle={() => toggleVariableExpenseStatus(item.id)}
+                  canDelete={true}
+                />
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
+              <span className="text-xs font-medium text-[var(--text-muted)]">Total Variables <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>
+              <span className="text-sm font-bold text-[var(--text-primary)]">{formatCurrency(varTotalAll)}</span>
+            </div>
+          </DashboardSection>
+          
+          <div className="bg-[var(--bg-input)] rounded-xl p-5 flex justify-between items-center">
+            <span className="text-sm font-medium text-[var(--text-primary)]">Total gastos del mes</span>
+            <span className="text-xl font-bold" style={{ color: COLORS.expenses }}>{formatCurrency(fixedTotal + displayVarTotal)}</span>
+          </div>
+        
         </div>
-      )}
-    </div>
+      </div>
+</div>
   );
 }
 
@@ -874,92 +973,6 @@ function PocketsTab() {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function HistoryTab() {
-  const { t } = useLanguage();
-  const { savedBudgets, formatCurrency, MONTHS_SHORT } = useMonthlyTracker();
-
-  const chartData = useMemo(() => {
-    let accAhorro = 0, accColchon = 0;
-    return savedBudgets.map((m) => {
-      const wiseCop = Math.round((parseFloat(m.salary_eur) - parseFloat(m.wise_fee_eur)) * parseFloat(m.exchange_rate));
-      const manualCop = Math.round(parseFloat(m.manual_income_cop) || 0);
-      const cop = wiseCop + manualCop;
-      const ahorro = Math.round(cop * (m.savings_pct || 0) / 100);
-      const colchon = Math.round(cop * (m.cushion_pct || 0) / 100);
-      accAhorro += ahorro;
-      accColchon += colchon;
-      return { label: `${MONTHS_SHORT[m.month]} ${m.year}`, cdt: accAhorro, colchon: accColchon };
-    });
-  }, [savedBudgets, MONTHS_SHORT]);
-
-  const totals = useMemo(() => savedBudgets.reduce((acc, m) => {
-    const wiseCop = Math.round((parseFloat(m.salary_eur) - parseFloat(m.wise_fee_eur)) * parseFloat(m.exchange_rate));
-    const manualCop = Math.round(parseFloat(m.manual_income_cop) || 0);
-    const cop = wiseCop + manualCop;
-    acc.ahorro += Math.round(cop * (m.savings_pct || 0) / 100);
-    acc.colchon += Math.round(cop * (m.cushion_pct || 0) / 100);
-    return acc;
-  }, { ahorro: 0, colchon: 0 }), [savedBudgets]);
-
-  return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-[var(--bg-input)] rounded-xl p-4">
-          <p className="text-xs text-[var(--text-muted)] mb-1">{t('finance.cdtAcumulado')}</p>
-          <p className="text-xl font-medium" style={{ color: COLORS.savings }}>{formatCurrency(totals.ahorro)}</p>
-        </div>
-        <div className="bg-[var(--bg-input)] rounded-xl p-4">
-          <p className="text-xs text-[var(--text-muted)] mb-1">{t('finance.colchonAcumulado')}</p>
-          <p className="text-xl font-medium" style={{ color: COLORS.cushion }}>{formatCurrency(totals.colchon)}</p>
-        </div>
-      </div>
-      <div className="glass-card p-5">
-        <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-4">{t('finance.evoluciónAhorro')}</p>
-        <div className="h-64">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis dataKey="label" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} stroke="var(--chart-axis)" />
-                <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} stroke="var(--chart-axis)" tickFormatter={(value) => `$${Math.round(value / 1000)}k`} />
-                <Tooltip contentStyle={{ backgroundColor: 'var(--bg-card-solid)', border: '1px solid var(--border-card)', borderRadius: '12px', color: 'var(--text-primary)' }} formatter={(value) => [formatCurrency(value), '']} />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar dataKey="cdt" name="CDT" fill="#1D9E75" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="colchon" name="Colchón" fill="#378ADD" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-sm text-[var(--text-muted)]">{t('finance.guardaPrimerMes')}</div>
-          )}
-        </div>
-      </div>
-      <div className="glass-card p-5">
-        <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">{t('finance.mesesRegistrados')}</p>
-        {savedBudgets.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)] py-2">{t('finance.guardaPrimerMes')}</p>
-        ) : (
-          <div className="space-y-2">
-            {savedBudgets.map((m) => {
-              const wiseCop = Math.round((parseFloat(m.salary_eur) - parseFloat(m.wise_fee_eur)) * parseFloat(m.exchange_rate));
-              const manualCop = Math.round(parseFloat(m.manual_income_cop) || 0);
-              const cop = wiseCop + manualCop;
-              const ahorro = Math.round(cop * (m.savings_pct || 0) / 100);
-              const colchon = Math.round(cop * (m.cushion_pct || 0) / 100);
-              return (
-                <div key={m.id} className="flex justify-between items-center py-2 border-b border-[var(--border-card)] last:border-b-0 text-sm">
-                  <span className="text-[var(--text-primary)]">{MONTHS_SHORT[m.month]} {m.year}</span>
-                  <span className="text-[var(--text-muted)]">{formatCurrency(cop)}</span>
-                  <span style={{ color: COLORS.savings }}>+{formatCurrency(ahorro + colchon)}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
     </div>
   );
