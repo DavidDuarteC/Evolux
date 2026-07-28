@@ -86,11 +86,17 @@ export function AuthProvider({ children }) {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
-      const u = session?.user ?? null;
-      setUser(u);
-      await fetchProfile(u);
+      // getSession handles the initial load; this listener only handles real changes
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+      } else if (event === 'USER_UPDATED') {
+        const u = session?.user ?? null;
+        setUser(u);
+        await fetchProfile(u);
+      }
     });
 
     return () => {
