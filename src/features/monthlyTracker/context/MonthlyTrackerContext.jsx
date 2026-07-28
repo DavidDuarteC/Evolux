@@ -73,6 +73,15 @@ export function MonthlyTrackerProvider({ children }) {
     }
 
     setLoading(true);
+
+    // Timeout: force loading=false if Supabase doesn't respond within 15s
+    let loadTimedOut = false;
+    const loadTimeoutId = setTimeout(() => {
+      loadTimedOut = true;
+      console.warn('Monthly tracker load timeout - forcing loading to false');
+      setLoading(false);
+    }, 15000);
+
     try {
       let [budgetsData, fixedData, variablesData, depositsData, incomesData] = await Promise.all([
         budgetsDb.getBudgets(userId),
@@ -81,6 +90,10 @@ export function MonthlyTrackerProvider({ children }) {
         depositsDb.getDeposits(userId).catch(() => []),
         incomesDb.getIncomes(null, userId).catch(() => []),
       ]);
+
+      if (loadTimedOut) return;
+
+      clearTimeout(loadTimeoutId);
 
       // Create default fixed expenses if none exist
       if (!fixedData || fixedData.length === 0) {

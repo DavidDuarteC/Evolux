@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
       if (!data) {
         const newProfile = {
           id: u.id,
-          name: u.user_metadata?.name || u.email || 'Guest',
+          name: u.user_metadata?.name || u.email?.split('@')[0] || 'Guest',
           plan: 'free',
           theme: 'dark',
           accent_color: '#3b82f6'
@@ -47,6 +47,14 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       console.error('Error fetching user profile:', err);
+      // Fallback: set a local profile so the app doesn't break
+      setProfile({
+        id: u.id,
+        name: u.user_metadata?.name || u.email?.split('@')[0] || 'Guest',
+        plan: 'free',
+        theme: 'dark',
+        accent_color: '#3b82f6'
+      });
     }
   };
 
@@ -57,7 +65,7 @@ export function AuthProvider({ children }) {
         console.warn('Auth init timeout - forcing loading to false');
         setLoading(false);
       }
-    }, 10000);
+    }, 25000);
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!isMounted) return;
@@ -78,11 +86,17 @@ export function AuthProvider({ children }) {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
-      const u = session?.user ?? null;
-      setUser(u);
-      await fetchProfile(u);
+      // getSession handles the initial load; this listener only handles real changes
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+      } else if (event === 'USER_UPDATED') {
+        const u = session?.user ?? null;
+        setUser(u);
+        await fetchProfile(u);
+      }
     });
 
     return () => {
