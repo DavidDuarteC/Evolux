@@ -78,18 +78,18 @@ export function AuthProvider({ children }) {
       }
     });
 
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-    };
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
       const u = session?.user ?? null;
       setUser(u);
       await fetchProfile(u);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email, password) => {
