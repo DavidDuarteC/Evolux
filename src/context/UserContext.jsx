@@ -2,10 +2,11 @@ import React, { createContext, useContext } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
 const UserContext = createContext({
-    user: { name: 'Guest', email: '', avatar: null, plan: 'Free', useWise: true, savingsTarget: 5000000, cushionTarget: 3000000, language: 'es' },
+    user: { name: 'Guest', email: '', avatar: null, plan: 'Free', useWise: true, useUsd: false, savingsTarget: 5000000, cushionTarget: 3000000, language: 'es' },
     updateName: () => { },
     updateAvatar: () => { },
     updateUseWise: () => { },
+    updateUseUsd: () => { },
     updateTargets: () => { },
     updateLanguage: () => { }
 });
@@ -23,6 +24,7 @@ export function UserProvider({ children }) {
         avatar: profile.avatar || null,
         plan: profile.plan || 'Free',
         useWise: profile.use_wise !== false,
+        useUsd: profile.use_usd === true,
         savingsTarget: parseFloat(profile.savings_target) || 5000000,
         cushionTarget: parseFloat(profile.cushion_target) || 3000000,
         language: profile.language || 'es',
@@ -32,6 +34,7 @@ export function UserProvider({ children }) {
         avatar: null,
         plan: 'Free',
         useWise: true,
+        useUsd: false,
         savingsTarget: 5000000,
         cushionTarget: 3000000,
         language: 'es',
@@ -61,6 +64,14 @@ export function UserProvider({ children }) {
         }
     };
 
+    const updateUseUsd = async (useUsd) => {
+        try {
+            await updateProfile({ use_usd: useUsd });
+        } catch (err) {
+            console.error('Error updating use_usd:', err);
+        }
+    };
+
     const updateTargets = async (savingsTarget, cushionTarget) => {
         try {
             await updateProfile({ savings_target: savingsTarget, cushion_target: cushionTarget });
@@ -78,7 +89,7 @@ export function UserProvider({ children }) {
     };
 
     return (
-        <UserContext.Provider value={{ user, updateName, updateAvatar, updateUseWise, updateTargets, updateLanguage }}>
+        <UserContext.Provider value={{ user, updateName, updateAvatar, updateUseWise, updateUseUsd, updateTargets, updateLanguage }}>
             {children}
         </UserContext.Provider>
     );

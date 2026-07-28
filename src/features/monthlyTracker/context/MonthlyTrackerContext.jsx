@@ -4,7 +4,7 @@ import * as budgetsDb from '../services/budgets';
 import * as fixedExpensesDb from '../services/fixedExpenses';
 import * as variableExpensesDb from '../services/variableExpenses';
 import * as depositsDb from '../services/deposits';
-import * as withdrawalsDb from '../services/withdrawals';
+import * as incomesDb from '../services/incomes';
 
 const MonthlyTrackerContext = createContext();
 
@@ -60,7 +60,6 @@ export function MonthlyTrackerProvider({ children }) {
   const [budgets, setBudgets] = useState([]);
   const [fixedExpenses, setFixedExpenses] = useState([]);
   const [deposits, setDeposits] = useState([]);
-  const [withdrawals, setWithdrawals] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -69,19 +68,18 @@ export function MonthlyTrackerProvider({ children }) {
       setBudgets([]);
       setFixedExpenses([]);
       setDeposits([]);
-      setWithdrawals([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      let [budgetsData, fixedData, variablesData, depositsData, withdrawalsData] = await Promise.all([
+      let [budgetsData, fixedData, variablesData, depositsData, incomesData] = await Promise.all([
         budgetsDb.getBudgets(userId),
         fixedExpensesDb.getFixedExpenses(userId),
         variableExpensesDb.getVariableExpenses(userId, null).catch(() => []),
         depositsDb.getDeposits(userId).catch(() => []),
-        withdrawalsDb.getWithdrawals(userId, null).catch(() => []),
+        incomesDb.getIncomes(null, userId).catch(() => []),
       ]);
 
       // Create default fixed expenses if none exist
@@ -129,17 +127,28 @@ export function MonthlyTrackerProvider({ children }) {
 
         variablesData = [...variablesData, ...newVariables];
         budgetsData = [...budgetsData, createdBudget];
+
+        // Create default incomes for the new budget
+        const defaultIncomes = await Promise.all([
+          incomesDb.createIncome(userId, createdBudget.id, {
+            label: 'Ingreso principal', currency: 'COP', amount: '0', sort_order: 0,
+          }),
+          incomesDb.createIncome(userId, createdBudget.id, {
+            label: 'Wise EUR', currency: 'EUR', amount: '600', fee: '15.28', rate: '3709.55', sort_order: 1,
+          }),
+        ]);
+        incomesData = [...incomesData, ...defaultIncomes];
       }
 
-      // Merge variable expenses and withdrawals into their budgets
+      // Merge variable expenses and incomes into their budgets
       const budgetsWithData = budgetsData.map((budget) => ({
         ...budget,
         gastosVar: variablesData
           .filter((v) => v.monthly_budget_id === budget.id)
           .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
-        withdrawals: withdrawalsData
-          .filter((w) => w.monthly_budget_id === budget.id)
-          .sort((a, b) => new Date(a.withdrawal_date || a.created_at) - new Date(b.withdrawal_date || b.created_at)),
+        incomes: incomesData
+          .filter((i) => i.budget_id === budget.id)
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
       }));
 
       // Sort by date
@@ -151,7 +160,6 @@ export function MonthlyTrackerProvider({ children }) {
       setFixedExpenses(fixedData || []);
       setBudgets(budgetsWithData);
       setDeposits(depositsData || []);
-      setWithdrawals(withdrawalsData || []);
 
       // Set current index to the most recent month
       const lastIndex = budgetsWithData.length - 1;
@@ -169,45 +177,37 @@ export function MonthlyTrackerProvider({ children }) {
 
   const currentBudget = budgets[currentIndex];
 
-  // Wise balance: total deposits - total withdrawn (amount already includes fee)
+  // Wise balance: total deposits - EUR withdrawn from incomes
   const wiseBalance = useMemo(() => {
+    if (!currentBudget) return 0;
     const totalDeposited = deposits.reduce((s, d) => s + (parseFloat(d.amount_eur) || 0), 0);
-    const totalWithdrawn = withdrawals.reduce((s, w) => s + (parseFloat(w.amount_eur) || 0), 0);
+    const eurIncomes = (currentBudget.incomes || []).filter((i) => i.currency === 'EUR' && (i.status || 0) === 1);
+    const totalWithdrawn = eurIncomes.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
     return +(totalDeposited - totalWithdrawn).toFixed(2);
-  }, [deposits, withdrawals]);
-
-  // Withdrawals for current month
-  const currentWithdrawals = useMemo(() => {
-    if (!currentBudget) return [];
-    return (currentBudget.withdrawals || []);
-  }, [currentBudget]);
+  }, [deposits, currentBudget]);
 
   const calculations = useMemo(() => {
     if (!currentBudget) {
       return {
         cop: 0, ahorro: 0, colchon: 0, fixedTotal: 0, varTotal: 0,
         gastos: 0, disponible: 0, netEur: 0, pctComision: '0.00',
-        wiseCop: 0, manualCop: 0, hasWithdrawals: false,
       };
     }
 
     const m = currentBudget;
-    const eurSalary = parseFloat(m.salary_eur) || 0;
-    const comision = parseFloat(m.wise_fee_eur) || 0;
-    const tasa = parseFloat(m.exchange_rate) || 0;
-    const netEur = +(eurSalary - comision).toFixed(2);
-    const legacyWiseCop = Math.round(netEur * tasa);
-    const manualCop = Math.round(parseFloat(m.manual_income_cop) || 0);
+    const budgetIncomes = m.incomes || [];
 
-    // If has withdrawals, Wise COP = sum of cop_received; else legacy calculation
-    const monthWithdrawals = m.withdrawals || [];
-    const hasWithdrawals = monthWithdrawals.length > 0;
-    const withdrawalsCop = monthWithdrawals.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0);
+    // Sum all incomes (COP directly, EUR/USD converted)
+    const totalCOP = budgetIncomes
+      .filter((i) => (i.status || 0) === 1)
+      .reduce((sum, i) => {
+        const amt = parseFloat(i.amount) || 0;
+        if (i.currency === 'COP') return sum + amt;
+        const net = amt - (parseFloat(i.fee) || 0);
+        return sum + Math.round(net * (parseFloat(i.rate) || 0));
+      }, 0);
 
-    const wiseCop = hasWithdrawals ? withdrawalsCop : (eurSalary > 0 ? legacyWiseCop : 0);
-
-    // Total COP = Wise + Manual (both can contribute)
-    const cop = wiseCop + manualCop;
+    const cop = totalCOP;
 
     const ahorro = Math.round(cop * (m.savings_pct || 0) / 100);
     const colchon = Math.round(cop * (m.cushion_pct || 0) / 100);
@@ -215,9 +215,24 @@ export function MonthlyTrackerProvider({ children }) {
     const varTotal = (m.gastosVar || []).filter((g) => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
     const gastos = fixedTotal + varTotal;
     const disponible = cop - ahorro - colchon - gastos;
-    const pctComision = (eurSalary > 0 && !hasWithdrawals) ? ((comision / eurSalary) * 100).toFixed(2) : '0.00';
 
-    return { cop, ahorro, colchon, fixedTotal, varTotal, gastos, disponible, netEur, pctComision, wiseCop, manualCop, hasWithdrawals };
+    // Legacy fields for backward compatibility
+    const wiseIncome = budgetIncomes.find((i) => i.currency === 'EUR');
+    const usdIncome = budgetIncomes.find((i) => i.currency === 'USD');
+    const copIncome = budgetIncomes.find((i) => i.currency === 'COP');
+
+    return {
+      cop, ahorro, colchon, fixedTotal, varTotal, gastos, disponible,
+      netEur: 0, pctComision: '0.00',
+      incomes: budgetIncomes,
+      wiseCop: wiseIncome
+        ? Math.round(((parseFloat(wiseIncome.amount) || 0) - (parseFloat(wiseIncome.fee) || 0)) * (parseFloat(wiseIncome.rate) || 0))
+        : 0,
+      manualCop: copIncome ? Math.round(parseFloat(copIncome.amount) || 0) : 0,
+      usdCop: usdIncome
+        ? Math.round(((parseFloat(usdIncome.amount) || 0) - (parseFloat(usdIncome.fee) || 0)) * (parseFloat(usdIncome.rate) || 0))
+        : 0,
+    };
   }, [currentBudget, fixedExpenses]);
 
   const formatCurrency = (val) =>
@@ -226,6 +241,8 @@ export function MonthlyTrackerProvider({ children }) {
     }).format(Math.round(val || 0));
 
   const formatEur = (val) => '€' + parseFloat(val || 0).toFixed(2);
+
+  const formatUsd = (val) => 'US$' + parseFloat(val || 0).toFixed(2);
 
   const formatCurrencyDec = (val) =>
     new Intl.NumberFormat('es-CO', {
@@ -342,6 +359,65 @@ export function MonthlyTrackerProvider({ children }) {
     }
   }, [userId, currentBudget]);
 
+  // ====== Incomes ======
+  const addIncome = useCallback(async (data) => {
+    if (!userId || !currentBudget) return;
+    const budgetId = currentBudget.id;
+    const sort_order = (currentBudget.incomes || []).length;
+    try {
+      const newItem = await incomesDb.createIncome(userId, budgetId, { ...data, sort_order });
+      setBudgets((prev) => prev.map((b) =>
+        b.id === budgetId ? { ...b, incomes: [...(b.incomes || []), newItem] } : b
+      ));
+      return newItem;
+    } catch (error) {
+      console.error('Error adding income:', error);
+    }
+  }, [userId, currentBudget]);
+
+  const updateIncome = useCallback(async (id, updates) => {
+    if (!userId) return;
+    try {
+      await incomesDb.updateIncome(id, userId, updates);
+      setBudgets((prev) => prev.map((b) => ({
+        ...b,
+        incomes: (b.incomes || []).map((i) => i.id === id ? { ...i, ...updates } : i),
+      })));
+    } catch (error) {
+      console.error('Error updating income:', error);
+    }
+  }, [userId]);
+
+  const deleteIncome = useCallback(async (id) => {
+    if (!userId) return;
+    try {
+      await incomesDb.deleteIncome(id, userId);
+      setBudgets((prev) => prev.map((b) => ({
+        ...b,
+        incomes: (b.incomes || []).filter((i) => i.id !== id),
+      })));
+    } catch (error) {
+      console.error('Error deleting income:', error);
+    }
+  }, [userId]);
+
+  const toggleIncomeStatus = useCallback(async (id) => {
+    if (!userId || !currentBudget) return;
+    const items = currentBudget.incomes || [];
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    const nextStatus = ((item.status || 0) + 1) % 3;
+    try {
+      await incomesDb.updateIncome(id, userId, { status: nextStatus });
+      setBudgets((prev) => prev.map((b) => ({
+        ...b,
+        incomes: (b.incomes || []).map((i) => i.id === id ? { ...i, status: nextStatus } : i),
+      })));
+    } catch (error) {
+      console.error('Error toggling income status:', error);
+    }
+  }, [userId, currentBudget]);
+
   // ====== Deposits ======
   const addDeposit = useCallback(async (amountEur, depositDate) => {
     if (!userId) return;
@@ -377,68 +453,6 @@ export function MonthlyTrackerProvider({ children }) {
   }, [userId]);
 
   // ====== Withdrawals ======
-  const addWithdrawal = useCallback(async (amountEur, exchangeRate, feeEur, withdrawalDate) => {
-    if (!userId || !currentBudget) return;
-    const budgetId = currentBudget.id;
-    const netEur = (parseFloat(amountEur) || 0) - (parseFloat(feeEur) || 0);
-    const copReceived = parseFloat((netEur * (parseFloat(exchangeRate) || 0)).toFixed(2));
-    try {
-      const newItem = await withdrawalsDb.createWithdrawal(userId, budgetId, {
-        amount_eur: amountEur,
-        exchange_rate: exchangeRate,
-        fee_eur: feeEur,
-        cop_received: copReceived,
-        withdrawal_date: withdrawalDate || new Date().toISOString().slice(0, 10),
-      });
-      setWithdrawals((prev) => [...prev, newItem]);
-      setBudgets((prev) => prev.map((b) =>
-        b.id === budgetId ? { ...b, withdrawals: [...(b.withdrawals || []), newItem] } : b
-      ));
-    } catch (error) {
-      console.error('Error adding withdrawal:', error);
-    }
-  }, [userId, currentBudget]);
-
-  const updateWithdrawal = useCallback(async (id, updates) => {
-    if (!userId) return;
-    try {
-      let processedUpdates = { ...updates };
-      if (updates.amount_eur !== undefined || updates.exchange_rate !== undefined || updates.fee_eur !== undefined) {
-        setBudgets((prev) => {
-          const budget = prev.find((b) => (b.withdrawals || []).some((w) => w.id === id));
-          if (budget) {
-            const w = budget.withdrawals.find((w) => w.id === id);
-            const newAmount = updates.amount_eur !== undefined ? parseFloat(updates.amount_eur) : parseFloat(w.amount_eur);
-            const newRate = updates.exchange_rate !== undefined ? parseFloat(updates.exchange_rate) : parseFloat(w.exchange_rate);
-            const newFee = updates.fee_eur !== undefined ? parseFloat(updates.fee_eur) : parseFloat(w.fee_eur);
-            const netEur = newAmount - newFee;
-            processedUpdates.cop_received = parseFloat((netEur * newRate).toFixed(2));
-          }
-          return prev;
-        });
-      }
-      setWithdrawals((prev) => prev.map((w) => (w.id === id ? { ...w, ...processedUpdates } : w)));
-      setBudgets((prev) => prev.map((b) =>
-        b.id === (currentBudget?.id) ? { ...b, withdrawals: (b.withdrawals || []).map((w) => w.id === id ? { ...w, ...processedUpdates } : w) } : b
-      ));
-      await withdrawalsDb.updateWithdrawal(id, userId, processedUpdates);
-    } catch (error) {
-      console.error('Error updating withdrawal:', error);
-    }
-  }, [userId, currentBudget]);
-
-  const deleteWithdrawal = useCallback(async (id) => {
-    if (!userId) return;
-    try {
-      await withdrawalsDb.deleteWithdrawal(id, userId);
-      setWithdrawals((prev) => prev.filter((w) => w.id !== id));
-      setBudgets((prev) => prev.map((b) =>
-        b.id === (currentBudget?.id) ? { ...b, withdrawals: (b.withdrawals || []).filter((w) => w.id !== id) } : b
-      ));
-    } catch (error) {
-      console.error('Error deleting withdrawal:', error);
-    }
-  }, [userId, currentBudget]);
 
   const copyFromPreviousMonth = useCallback(async () => {
     if (!userId || !currentBudget || budgets.length < 1) return;
@@ -464,8 +478,33 @@ export function MonthlyTrackerProvider({ children }) {
         cushion_pct: prev.cushion_pct,
         income_mode: prev.income_mode,
         manual_income_cop: prev.manual_income_cop,
+        usd_amount: prev.usd_amount || '0',
+        usd_rate: prev.usd_rate || '0',
+        usd_fee: prev.usd_fee || '0',
+        usd_cop: prev.usd_cop || '0',
       };
       await budgetsDb.updateBudget(currentBudget.id, userId, budgetFields);
+
+      // 2. Copy incomes from previous month
+      const prevIncomes = prev.incomes || [];
+      for (const inc of currentBudget.incomes || []) {
+        if (inc.id) {
+          await incomesDb.deleteIncome(inc.id, userId);
+        }
+      }
+      const newIncomes = await Promise.all(
+        prevIncomes.map((inc, idx) =>
+          incomesDb.createIncome(userId, currentBudget.id, {
+            label: inc.label,
+            currency: inc.currency,
+            amount: inc.amount,
+            fee: inc.fee || '0',
+            rate: inc.rate || '0',
+            status: 0,
+            sort_order: idx,
+          })
+        )
+      );
 
       // 2. Replace variable expenses with previous month's
       const currentVar = currentBudget.gastosVar || [];
@@ -496,7 +535,7 @@ export function MonthlyTrackerProvider({ children }) {
       setBudgets((prevBudgets) =>
         prevBudgets.map((b) => {
           if (b.id === currentBudget.id) {
-            return { ...b, ...budgetFields, gastosVar: newVariables };
+            return { ...b, ...budgetFields, gastosVar: newVariables, incomes: newIncomes };
           }
           return b;
         })
@@ -534,6 +573,8 @@ export function MonthlyTrackerProvider({ children }) {
         exchange_rate: last.exchange_rate, savings_pct: last.savings_pct,
         cushion_pct: last.cushion_pct, saved: false,
         income_mode: last.income_mode || 'wise', manual_income_cop: last.manual_income_cop || 0,
+        usd_amount: last.usd_amount || '0', usd_rate: last.usd_rate || '0',
+        usd_fee: last.usd_fee || '0', usd_cop: last.usd_cop || '0',
       });
 
       const newVariables = await Promise.all(
@@ -542,8 +583,22 @@ export function MonthlyTrackerProvider({ children }) {
         )
       );
 
-      const budgetWithVariables = { ...createdBudget, gastosVar: newVariables, withdrawals: [] };
-      setBudgets((prev) => [...prev, budgetWithVariables]);
+      const newIncomes = await Promise.all([
+        incomesDb.createIncome(userId, createdBudget.id, {
+          label: 'Ingreso principal', currency: 'COP', amount: '0', sort_order: 0,
+        }),
+        incomesDb.createIncome(userId, createdBudget.id, {
+          label: 'Wise EUR', currency: 'EUR', amount: '600', fee: '15.28', rate: '3709.55', sort_order: 1,
+        }),
+      ]);
+
+      const budgetWithIncomes = {
+        ...createdBudget,
+        gastosVar: newVariables,
+        withdrawals: [],
+        incomes: newIncomes,
+      };
+      setBudgets((prev) => [...prev, budgetWithIncomes]);
       setCurrentIndex(budgets.length);
     } catch (error) {
       console.error('Error creating next month:', error);
@@ -571,13 +626,13 @@ export function MonthlyTrackerProvider({ children }) {
 
   const value = {
     budgets, currentBudget, currentIndex, setCurrentIndex,
-    fixedExpenses, deposits, withdrawals, wiseBalance, currentWithdrawals,
-    loading, calculations, formatCurrency, formatCurrencyDec, formatEur, MONTHS_LONG, MONTHS_SHORT,
+    fixedExpenses, deposits, wiseBalance,
+    loading, calculations, formatCurrency, formatCurrencyDec, formatEur, formatUsd, MONTHS_LONG, MONTHS_SHORT,
     updateBudgetField,
     updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus,
     updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus,
+    addIncome, updateIncome, deleteIncome, toggleIncomeStatus,
     addDeposit, updateDeposit, deleteDeposit,
-    addWithdrawal, updateWithdrawal, deleteWithdrawal,
     saveCurrentMonth, createNextMonth, copyFromPreviousMonth, savedBudgets, accumulated, reload: loadData,
   };
 

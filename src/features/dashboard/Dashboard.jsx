@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  TrendingUp, TrendingDown, Save, Plus,
-  CheckSquare, Dumbbell, Trophy, BarChart3,
+  TrendingUp, TrendingDown, BarChart3, CheckSquare, Dumbbell, Trophy,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -56,10 +55,7 @@ export default function Dashboard() {
     calculations: trackerCalc,
     formatCurrency: trackerFmt,
     formatCurrencyDec,
-    MONTHS_LONG,
-    saveCurrentMonth,
-    createNextMonth,
-    savedBudgets,
+    MONTHS_LONG, MONTHS_SHORT,
     loading,
   } = useMonthlyTracker();
 
@@ -106,20 +102,24 @@ export default function Dashboard() {
   // ── Display calculations for the selected month ──
   const displayCalc = useMemo(() => {
     if (!selectedBudget) {
-      return { cop: 0, wiseCop: 0, manualCop: 0, ahorro: 0, colchon: 0, fixedTotal: 0, varTotal: 0, disponible: 0 };
+      return { cop: 0, ahorro: 0, colchon: 0, fixedTotal: 0, varTotal: 0, disponible: 0 };
     }
     const b = selectedBudget;
-    const wd = b.withdrawals || [];
-    const wCop = wd.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0);
-    const leg = Math.round((parseFloat(b.salary_eur) - parseFloat(b.wise_fee_eur)) * parseFloat(b.exchange_rate));
-    const wiseCop = wd.length > 0 ? wCop : (parseFloat(b.salary_eur) > 0 ? leg : 0);
-    const manualCop = Math.round(parseFloat(b.manual_income_cop) || 0);
-    const cop = wiseCop + manualCop;
+    const budgetIncomes = b.incomes || [];
+    const totalCOP = budgetIncomes
+      .filter((i) => (i.status || 0) === 1)
+      .reduce((sum, i) => {
+        const amt = parseFloat(i.amount) || 0;
+        if (i.currency === 'COP') return sum + amt;
+        const net = amt - (parseFloat(i.fee) || 0);
+        return sum + Math.round(net * (parseFloat(i.rate) || 0));
+      }, 0);
+    const cop = totalCOP;
     const ahorro = Math.round(cop * (b.savings_pct || 0) / 100);
     const colchon = Math.round(cop * (b.cushion_pct || 0) / 100);
     const fTotal = fixedExpenses.filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
     const vTotal = (b.gastosVar || []).filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
-    return { cop, wiseCop, manualCop, ahorro, colchon, fixedTotal: fTotal, varTotal: vTotal, disponible: cop - ahorro - colchon - fTotal - vTotal };
+    return { cop, fixedTotal: fTotal, varTotal: vTotal, ahorro, colchon, disponible: cop - ahorro - colchon - fTotal - vTotal };
   }, [selectedBudget, fixedExpenses]);
 
   // ── Derived values ──
@@ -169,11 +169,15 @@ export default function Dashboard() {
       const b = budgetMap[`${y}-${m}`];
       let cop = 0, allocated = 0;
       if (b) {
-        const wd = b.withdrawals || [];
-        const wCop = wd.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0);
-        const leg = Math.round((parseFloat(b.salary_eur) - parseFloat(b.wise_fee_eur)) * parseFloat(b.exchange_rate));
-        const wiseCop = wd.length > 0 ? wCop : (parseFloat(b.salary_eur) > 0 ? leg : 0);
-        cop = wiseCop + Math.round(parseFloat(b.manual_income_cop) || 0);
+        const budgetIncomes = b.incomes || [];
+        cop = budgetIncomes
+          .filter((i) => (i.status || 0) === 1)
+          .reduce((sum, i) => {
+            const amt = parseFloat(i.amount) || 0;
+            if (i.currency === 'COP') return sum + amt;
+            const net = amt - (parseFloat(i.fee) || 0);
+            return sum + Math.round(net * (parseFloat(i.rate) || 0));
+          }, 0);
         allocated = Math.round(cop * (b.savings_pct || 0) / 100) + Math.round(cop * (b.cushion_pct || 0) / 100);
       }
       data.push({
@@ -207,24 +211,29 @@ export default function Dashboard() {
     ].filter(Boolean);
   }, [fixedExpenses, selectedBudget]);
 
-  // ── Accumulated savings (CDT + Colchón) — filtered by selected month ──
+  // ── Accumulated savings (CDT + Colchón) — from all budgets up to selected month ──
   const savingsChart = useMemo(() => {
     const refY = pickerDate.getFullYear();
     const refM = pickerDate.getMonth();
-    const filtered = savedBudgets.filter(b => {
+    const filtered = budgets.filter(b => {
       return b.year < refY || (b.year === refY && b.month <= refM);
     });
     let accA = 0, accC = 0;
     return filtered.map(m => {
-      const wc = m.withdrawals?.length
-        ? m.withdrawals.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0)
-        : Math.round((parseFloat(m.salary_eur) - parseFloat(m.wise_fee_eur)) * parseFloat(m.exchange_rate));
-      const c = wc + Math.round(parseFloat(m.manual_income_cop) || 0);
-      accA += Math.round(c * (m.savings_pct || 0) / 100);
-      accC += Math.round(c * (m.cushion_pct || 0) / 100);
+      const incomes = m.incomes || [];
+      const totalCOP = incomes
+        .filter((i) => (i.status || 0) === 1)
+        .reduce((s, i) => {
+          const amt = parseFloat(i.amount) || 0;
+          if (i.currency === 'COP') return s + amt;
+          const net = amt - (parseFloat(i.fee) || 0);
+          return s + Math.round(net * (parseFloat(i.rate) || 0));
+        }, 0);
+      accA += Math.round(totalCOP * (m.savings_pct || 0) / 100);
+      accC += Math.round(totalCOP * (m.cushion_pct || 0) / 100);
       return { name: `${MONTHS[m.month]}`, CDT: accA, Colchón: accC };
     });
-  }, [savedBudgets, pickerDate]);
+  }, [budgets, pickerDate]);
 
   const taskSpaceData = useMemo(() =>
     spaces.map(s => {
@@ -270,11 +279,6 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <DatePicker selectedDate={pickerDate} onChange={handleMonthChange} monthOnly={true} />
-          <span className={`text-[11px] px-2.5 py-1 rounded-md font-medium shrink-0 ${
-            selectedBudget?.saved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
-          }`}>
-            {selectedBudget?.saved ? t('dashboard.mesGuardado') : t('dashboard.enProgreso')}
-          </span>
         </div>
       </div>
 
@@ -491,22 +495,36 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ACTIONS */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <button
-          onClick={() => { saveCurrentMonth(); toast.success(t('dashboard.mesGuardadoToast')); }}
-          disabled={trackerBudget?.saved}
-          className="flex-1 py-3 rounded-xl text-sm font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          <Save size={15} /> {t('dashboard.guardar')} {trackerMonthLabel}
-        </button>
-        <button
-          onClick={() => { createNextMonth(); toast.success(t('dashboard.mesSiguienteToast')); }}
-          className="flex-1 py-3 rounded-xl text-sm font-medium bg-[var(--bg-input)] text-[var(--text-primary)] border border-[var(--border-card)] hover:bg-[var(--bg-card-solid)] transition-colors flex items-center justify-center gap-2"
-        >
-          <Plus size={15} /> {t('dashboard.crearMesSiguiente')}
-        </button>
-      </div>
+      {/* SAVED MONTHS */}
+      {budgets.length > 0 && (
+        <div className="glass-card p-5 sm:p-6">
+          <h3 className="text-sm font-semibold text-white uppercase tracking-wide mb-4">Meses registrados</h3>
+          <div className="space-y-2">
+            {budgets.filter(b => b.year < pickerDate.getFullYear() || (b.year === pickerDate.getFullYear() && b.month <= pickerDate.getMonth())).map((m) => {
+              const incomes = m.incomes || [];
+              const totalCOP = incomes
+                .filter((i) => (i.status || 0) === 1)
+                .reduce((s, i) => {
+                  const amt = parseFloat(i.amount) || 0;
+                  if (i.currency === 'COP') return s + amt;
+                  const net = amt - (parseFloat(i.fee) || 0);
+                  return s + Math.round(net * (parseFloat(i.rate) || 0));
+                }, 0);
+              const ahorro = Math.round(totalCOP * (m.savings_pct || 0) / 100);
+              const colchon = Math.round(totalCOP * (m.cushion_pct || 0) / 100);
+              return (
+                <div key={m.id} className="flex justify-between items-center py-3 border-b border-white/5 last:border-b-0 text-sm">
+                  <span className="text-white font-medium">{MONTHS_SHORT[m.month]} {m.year}</span>
+                  <div className="flex items-center gap-6">
+                    <span className="text-text-muted">{trackerFmt(totalCOP)}</span>
+                    <span className="text-green-400 font-medium">+{trackerFmt(ahorro + colchon)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
     </div>
   );
