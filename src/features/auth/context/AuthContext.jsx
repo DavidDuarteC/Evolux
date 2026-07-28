@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
       if (!data) {
         const newProfile = {
           id: u.id,
-          name: u.user_metadata?.name || u.email || 'Guest',
+          name: u.user_metadata?.name || u.email?.split('@')[0] || 'Guest',
           plan: 'free',
           theme: 'dark',
           accent_color: '#3b82f6'
@@ -47,6 +47,14 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       console.error('Error fetching user profile:', err);
+      // Fallback: set a local profile so the app doesn't break
+      setProfile({
+        id: u.id,
+        name: u.user_metadata?.name || u.email?.split('@')[0] || 'Guest',
+        plan: 'free',
+        theme: 'dark',
+        accent_color: '#3b82f6'
+      });
     }
   };
 
@@ -57,7 +65,7 @@ export function AuthProvider({ children }) {
         console.warn('Auth init timeout - forcing loading to false');
         setLoading(false);
       }
-    }, 10000);
+    }, 25000);
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!isMounted) return;
