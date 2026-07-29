@@ -81,3 +81,4 @@ sql
 # Local overrides
 *.local
 scripts/__pycache__/
+scripts/
