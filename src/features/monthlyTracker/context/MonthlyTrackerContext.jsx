@@ -153,6 +153,50 @@ export function MonthlyTrackerProvider({ children }) {
         incomesData = [...incomesData, ...defaultIncomes];
       }
 
+      // ═══ Migration: create incomes from old budget fields ═══
+      for (const budget of budgetsData) {
+        const hasIncomes = incomesData.some((i) => i.budget_id === budget.id);
+        if (hasIncomes) continue;
+
+        const newIncomes = [];
+
+        // Manual COP
+        const manualCop = parseFloat(budget.manual_income_cop) || 0;
+        if (manualCop > 0) {
+          const inc = await incomesDb.createIncome(userId, budget.id, {
+            label: 'Ingreso manual', currency: 'COP', amount: String(manualCop), sort_order: 0,
+          });
+          newIncomes.push(inc);
+        }
+
+        // USD
+        const usdAmt = parseFloat(budget.usd_amount) || 0;
+        if (usdAmt > 0) {
+          const inc = await incomesDb.createIncome(userId, budget.id, {
+            label: 'USD', currency: 'USD', amount: String(usdAmt),
+            fee: String(parseFloat(budget.usd_fee) || 0),
+            rate: String(parseFloat(budget.usd_rate) || 0),
+            sort_order: 1,
+          });
+          newIncomes.push(inc);
+        }
+
+        // EUR (legacy salary - only if no withdrawals migrated as incomes)
+        const eurSalary = parseFloat(budget.salary_eur) || 0;
+        if (eurSalary > 0) {
+          const inc = await incomesDb.createIncome(userId, budget.id, {
+            label: 'Wise EUR', currency: 'EUR', amount: String(eurSalary),
+            fee: String(parseFloat(budget.wise_fee_eur) || 0),
+            rate: String(parseFloat(budget.exchange_rate) || 0),
+            sort_order: 2,
+          });
+          newIncomes.push(inc);
+        }
+
+        incomesData = [...incomesData, ...newIncomes];
+      }
+      // ═══════════════════════════════════════════════════════
+
       // Merge variable expenses and incomes into their budgets
       const budgetsWithData = budgetsData.map((budget) => ({
         ...budget,
