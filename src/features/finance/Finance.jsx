@@ -50,7 +50,19 @@ const monthKeyOf = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1
 const Finance = () => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('resumen');
-  const { loading, currentBudget, calculations, MONTHS_LONG } = useMonthlyTracker();
+  const { loading, currentBudget, budgets, setCurrentIndex, calculations, MONTHS_LONG } = useMonthlyTracker();
+
+  const [pickerDate, setPickerDate] = useState(() =>
+    currentBudget ? new Date(currentBudget.year, currentBudget.month) : new Date()
+  );
+
+  const handleMonthChange = (newDate) => {
+    setPickerDate(newDate);
+    const y = newDate.getFullYear();
+    const m = newDate.getMonth();
+    const idx = budgets.findIndex(b => Number(b.year) === y && Number(b.month) === m);
+    if (idx >= 0) setCurrentIndex(idx);
+  };
 
   const TABS = [
     { id: 'resumen', label: 'Ingresos y Gastos', icon: ArrowRightLeft },
@@ -93,6 +105,7 @@ const Finance = () => {
       <PageHeader
         title={t('finance.title')}
         subtitle={label}
+        right={<DatePicker selectedDate={pickerDate} onChange={handleMonthChange} monthOnly={true} />}
       />
 
       {/* === STAT CARDS === */}
@@ -125,8 +138,8 @@ const Finance = () => {
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'resumen' && <TrackerTab />}
-          {activeTab === 'liquidez' && <LiquidityTab />}
+          {activeTab === 'resumen' && <TrackerTab budgets={budgets} pickerDate={pickerDate} />}
+          {activeTab === 'liquidez' && <LiquidityTab sharedDate={pickerDate} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -319,7 +332,7 @@ const DashboardSection = ({ title, children, onEdit, isEditing, onAdd, isComplet
   return (
     <div className="relative group">
       <div
-        className={`glass-card p-5 lg:p-6 transition-all duration-500 
+        className={`glass-card p-6 transition-all duration-500 
         ${isComplete
             ? 'border-[#22c55e]/30 shadow-[0_0_15px_rgba(34,197,94,0.05)]'
             : 'hover:border-white/20'
@@ -360,71 +373,58 @@ const DashboardSection = ({ title, children, onEdit, isEditing, onAdd, isComplet
   );
 };
 
-const ListHeader = ({ showCategory = false }) => (
-  <div className="flex items-center gap-1.5 sm:gap-2 px-2 -mx-2 mb-2">
-    <div className="w-[16px]"></div>
-    <div className="flex-1 grid grid-cols-12 gap-1 items-center">
-      <div className={`${showCategory ? "col-span-5" : "col-span-7"} text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider pl-1`}>Concepto</div>
-      {showCategory && <div className="col-span-2 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider text-center">Categoría</div>}
-      <div className="col-span-3 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider text-center">Fecha</div>
-      <div className="col-span-2 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider text-right pr-1">Valor</div>
-    </div>
+const ListHeader = () => (
+  <div className="flex items-center gap-1.5 sm:gap-2 px-1 mb-1">
+    <div className="w-4 shrink-0" />
+    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
+    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 text-right">Valor</span>
   </div>
 );
 
-const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, showCategory = false }) => {
+const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, showCategory = false, onMove, isFirst, isLast, showDate = false }) => {
+  const displayLabel = item.name !== undefined ? item.name : (item.label || '');
+  const fmtAmount = (val) => {
+    const n = typeof val === 'string' ? parseFloat(val.replace(/\./g, '')) : (parseFloat(val) || 0);
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+  };
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 py-1 border-b border-[var(--border-card)]/50 last:border-b-0 hover:bg-white/5 px-2 -mx-2 rounded-lg transition-colors min-h-[32px]">
-      <div className="shrink-0 flex items-center justify-center h-full">
-        <StatusBulb status={item.status || 0} onClick={onStatusToggle} readOnly={!isEditing} />
-      </div>
-      <div className="flex-1 grid grid-cols-12 gap-1 items-center">
-        <div className={showCategory ? "col-span-5" : "col-span-7"}>
-          {isEditing ? (
-            <input
-              type="text"
-              value={item.name !== undefined ? item.name : item.label || ''}
-              onChange={(e) => onChange(item.id, item.name !== undefined ? 'name' : 'label', e.target.value)}
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[#22c55e]"
-            />
-          ) : (
-            <span className="font-medium text-[var(--text-primary)] text-[11px] truncate block pl-1">{item.name !== undefined ? item.name : item.label || '-'}</span>
-          )}
+    <div className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
+      {isEditing && onMove && (
+        <div className="w-4 flex flex-col items-center justify-center shrink-0 -my-1">
+          <button onClick={(e) => { e.stopPropagation(); onMove('up'); }} disabled={isFirst}
+            className="text-text-muted/50 hover:text-white disabled:opacity-20 transition-colors leading-none"><ChevronUp size={13} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onMove('down'); }} disabled={isLast}
+            className="text-text-muted/50 hover:text-white disabled:opacity-20 transition-colors leading-none"><ChevronDown size={13} /></button>
         </div>
-        {showCategory && (
-          <div className="col-span-2 text-center flex justify-center">
-            <span className="text-[10px] text-[var(--text-muted)]">—</span>
+      )}
+      <StatusBulb status={item.status || 0} onClick={onStatusToggle} readOnly={!isEditing} />
+
+      {isEditing ? (
+        <>
+          <input type="text" value={displayLabel} onChange={(e) => onChange(item.id, item.name !== undefined ? 'name' : 'label', e.target.value)}
+            placeholder="Concepto" className="min-w-0 flex-1 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
+          {showDate && (
+            <input type="text" value={item.date || ''} onChange={(e) => onChange(item.id, 'date', e.target.value)}
+              placeholder="Fecha" className="w-20 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] text-center focus:outline-none focus:border-[var(--border-hover)]" />
+          )}
+          <input type="text" value={item.amount || ''} onChange={(e) => {
+            const rawValue = e.target.value.replace(/\./g, '').replace(/,/g, '');
+            if (!/^\d*$/.test(rawValue)) return;
+            onChange(item.id, 'amount', rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, "."));
+          }} placeholder="0" className="w-24 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] text-right focus:outline-none focus:border-[var(--border-hover)]" />
+          <button onClick={() => canDelete && onDelete(item.id)} disabled={!canDelete}
+            className={`p-1.5 rounded transition-colors shrink-0 ${canDelete ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : 'text-zinc-700 cursor-not-allowed'}`}>
+            <Trash2 size={13} />
+          </button>
+        </>
+      ) : (
+        <div className="flex-1 flex items-center justify-between min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] text-[var(--text-primary)] font-medium truncate">{displayLabel}</span>
+            {showDate && item.date && <span className="text-[10px] text-[var(--text-muted)]">{item.date}</span>}
           </div>
-        )}
-        <div className="col-span-3 text-center flex justify-center">
-          <span className="text-[10px] text-[var(--text-muted)]">{item.date || 'Jul 01'}</span>
+          <span className="text-[11px] font-bold text-[var(--text-primary)]">{fmtAmount(item.amount)}</span>
         </div>
-        <div className="col-span-2 text-right">
-          {isEditing ? (
-            <input
-              type="text"
-              value={item.amount || ''}
-              onChange={(e) => {
-                const rawValue = e.target.value.replace(/\./g, '').replace(/,/g, '');
-                if (!/^\d*$/.test(rawValue)) return;
-                const formatted = rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-                onChange(item.id, 'amount', formatted);
-              }}
-              className="w-full bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] font-medium text-[var(--text-primary)] focus:outline-none focus:border-[#22c55e] text-right"
-            />
-          ) : (
-            <span className="font-bold text-[var(--text-primary)] text-[12px]">{item.amount || '0'}</span>
-          )}
-        </div>
-      </div>
-      {isEditing && (
-        <button
-          onClick={() => canDelete && onDelete(item.id)}
-          disabled={!canDelete}
-          className={`w-6 h-6 flex items-center justify-center shrink-0 rounded transition-colors ml-1 ${canDelete ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : 'text-zinc-700 cursor-not-allowed'}`}
-        >
-          <Trash2 size={13} />
-        </button>
       )}
     </div>
   );
@@ -432,7 +432,7 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
 
 
 
-function TrackerTab() {
+function TrackerTab({ budgets: allBudgets, pickerDate }) {
   const { t } = useLanguage();
   const [annualExpenses, setAnnualExpenses] = useState([]);
   const {
@@ -443,8 +443,16 @@ function TrackerTab() {
     fixedExpenses, updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus,
     updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus,
     copyFromPreviousMonth,
-    budgets, currentIndex, setCurrentIndex, MONTHS_LONG,
+    setCurrentIndex, MONTHS_LONG,
   } = useMonthlyTracker();
+
+  // Selected budget based on the shared picker (independent of currentBudget)
+  const selectedBudget = useMemo(() => {
+    if (!pickerDate) return currentBudget;
+    const y = pickerDate.getFullYear();
+    const m = pickerDate.getMonth();
+    return allBudgets?.find(b => Number(b.year) === y && Number(b.month) === m) || null;
+  }, [allBudgets, pickerDate, currentBudget]);
   const { user } = useUser();
   const useWise = user.useWise !== false;
   const useUsd = user.useUsd === true;
@@ -501,31 +509,13 @@ function TrackerTab() {
     }
   };
 
-  const [pickerDate, setPickerDate] = useState(() =>
-    currentBudget ? new Date(currentBudget.year, currentBudget.month) : new Date()
-  );
-
-  const handleMonthChange = (newDate) => {
-    setPickerDate(newDate);
-    const y = newDate.getFullYear();
-    const m = newDate.getMonth();
-    const idx = budgets.findIndex(b => b.year === y && b.month === m);
-    if (idx >= 0) setCurrentIndex(idx);
-  };
-
-  const selectedBudget = useMemo(() => {
-    const y = pickerDate.getFullYear();
-    const m = pickerDate.getMonth();
-    return budgets.find(b => Number(b.year) === y && Number(b.month) === m) || null;
-  }, [budgets, pickerDate]);
-
   const displayVarTotal = useMemo(() => {
     if (!selectedBudget) return 0;
     return (selectedBudget.gastosVar || []).filter(g => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
   }, [selectedBudget]);
 
   const fixedTotalAll = useMemo(() =>
-    fixedExpenses.reduce((s, g) => s + (parseFloat(g.amount) || 0), 0), [fixedExpenses]);
+    (selectedBudget?.fixedExpenses || []).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0), [selectedBudget]);
 
   const varTotalAll = useMemo(() => {
     if (!selectedBudget) return 0;
@@ -639,6 +629,21 @@ function TrackerTab() {
     await annualExpensesDb.updateAnnualExpense(id, userId, { status: nextStatus });
   };
 
+  const moveAnnualExpense = async (id, direction) => {
+    const idx = annualExpenses.findIndex((a) => a.id === id);
+    if (idx === -1) return;
+    const swap = direction === 'up' ? idx - 1 : idx + 1;
+    if (swap < 0 || swap >= annualExpenses.length) return;
+    const newOrder = [...annualExpenses];
+    [newOrder[idx], newOrder[swap]] = [newOrder[swap], newOrder[idx]];
+    setAnnualExpenses(newOrder);
+    // Persist sort_order for both swapped items
+    await Promise.all([
+      annualExpensesDb.updateAnnualExpense(newOrder[idx].id, userId, { sort_order: idx }),
+      annualExpensesDb.updateAnnualExpense(newOrder[swap].id, userId, { sort_order: swap }),
+    ]);
+  };
+
   const handleAddDeposit = () => {
     const val = parseFloat(depositAmount) || 0;
     if (val <= 0) return;
@@ -648,14 +653,8 @@ function TrackerTab() {
   };
 
 
-  useEffect(() => {
-    if (currentBudget) {
-      setPickerDate(new Date(currentBudget.year, currentBudget.month));
-    }
-  }, [currentBudget]);
-
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
+    <div className="space-y-6">
       {/* === STAT CARDS === */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
@@ -688,12 +687,7 @@ function TrackerTab() {
         />
       </div>
 
-      {/* === MONTH PICKER === */}
-      <div className="flex justify-center">
-        <DatePicker selectedDate={pickerDate} onChange={handleMonthChange} monthOnly={true} />
-      </div>
-
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center justify-center gap-2 mb-4">
         <button
           onClick={() => copyFromPreviousMonth()}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[var(--bg-input)] text-[var(--text-muted)] border border-[var(--border-card)] rounded-lg hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] transition-all"
@@ -714,7 +708,7 @@ function TrackerTab() {
             isComplete={annualExpenses.length > 0 && annualExpenses.every(item => item.status === 1)}
           >
             <ListHeader />
-            {annualExpenses.map((item) => (
+            {annualExpenses.map((item, idx) => (
               <TransactionRow
                 key={item.id}
                 item={{ ...item, name: item.label, date: item.payment_date }}
@@ -723,27 +717,47 @@ function TrackerTab() {
                 onDelete={(id) => deleteAnnualExpense(id)}
                 onStatusToggle={() => toggleAnnualStatus(item.id)}
                 canDelete={true}
+                onMove={(dir) => moveAnnualExpense(item.id, dir)}
+                isFirst={idx === 0}
+                isLast={idx === annualExpenses.length - 1}
+                showDate={true}
               />
             ))}
+            <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
+              <span className="text-xs font-medium text-[var(--text-muted)]">Total Anuales</span>
+              <span className="text-sm font-bold text-[var(--text-primary)]">{formatCurrency(annualExpenses.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0))}</span>
+            </div>
           </DashboardSection>
           
           
           {/* === INGRESOS === */}
           {/* === INGRESOS === */}
-          <DashboardSection title="Ingresos Fijos" isEditing={uiState.fixedIncome} onEdit={() => toggleEdit('fixedIncome')} onAdd={() => addIncome({ label: 'Nuevo ingreso', currency: 'COP', amount: '0', status: 0 })} isComplete={(currentBudget?.incomes || []).length > 0 && (currentBudget?.incomes || []).every(i => i.status === 1)}>
-            {uiState.fixedIncome && (
+          <DashboardSection title="Ingresos Fijos" isEditing={uiState.fixedIncome} onEdit={() => toggleEdit('fixedIncome')} onAdd={() => addIncome({ label: 'Nuevo ingreso', currency: 'COP', amount: '0', status: 0 })} isComplete={(selectedBudget?.incomes || []).length > 0 && (selectedBudget?.incomes || []).every(i => i.status === 1)}>
+            {uiState.fixedIncome ? (
               <div className="flex items-center gap-1.5 sm:gap-2 px-1 mb-1 -mt-2">
                 <div className="w-4 shrink-0" />
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
-                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">Moneda</span>
-                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Monto</span>
-                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[60px] shrink-0 text-right">Comisión</span>
-                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Tasa</span>
+                {useWise || useUsd ? (
+                  <>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">Moneda</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Monto</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[60px] shrink-0 text-right">Comisión</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Tasa</span>
+                  </>
+                ) : (
+                  <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 text-right">Valor</span>
+                )}
                 <div className="w-9 shrink-0" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 sm:gap-2 px-1 mb-1 -mt-2">
+                <div className="w-4 shrink-0" />
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 text-right">Valor</span>
               </div>
             )}
             <div className="space-y-1">
-              {(currentBudget?.incomes || []).map((inc) => {
+              {(selectedBudget?.incomes || []).map((inc) => {
                 const local = uiState.fixedIncome ? getInc(inc) : inc;
                 const copPreview = local.currency === 'COP'
                   ? parseFloat(local.amount) || 0
@@ -797,20 +811,28 @@ function TrackerTab() {
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="text-[11px] text-[var(--text-primary)] font-medium truncate">{local.label}</span>
                           <span className="text-[10px] text-[var(--text-muted)] shrink-0">{local.currency}</span>
-                          {copPreview > 0 && (
-                            <span className="text-[11px] font-medium shrink-0" style={{ color: COLORS.savings }}>
-                              {formatCurrencyDec(copPreview)}
-                            </span>
+                          {local.currency !== 'COP' && (
+                            <span className="text-[11px] text-[var(--text-muted)]">{local.amount} {local.currency}</span>
                           )}
                         </div>
-                        <span className="text-[10px] text-[var(--text-muted)]">
-                          {local.currency === 'COP' ? formatCurrency(local.amount) : `${local.amount} ${local.currency}`}
+                        <span className="text-[11px] font-medium" style={{ color: local.currency !== 'COP' ? COLORS.savings : 'var(--text-primary)' }}>
+                          {local.currency === 'COP' ? formatCurrency(local.amount) : `≈ ${formatCurrencyDec(copPreview)}`}
                         </span>
                       </div>
                     )}
                   </div>
                 );
               })}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
+              <span className="text-xs font-medium text-[var(--text-muted)]">Total Ingresos</span>
+              <span className="text-sm font-bold text-[var(--text-primary)]">{formatCurrency((selectedBudget?.incomes || []).reduce((s, i) => {
+                const amt = parseFloat(i.amount) || 0;
+                if (i.currency === 'COP') return s + amt;
+                const net = amt - (parseFloat(i.fee) || 0);
+                return s + Math.round(net * (parseFloat(i.rate) || 0));
+              }, 0))}</span>
             </div>
 
             {/* Wise deposits (global) */}
@@ -852,23 +874,6 @@ function TrackerTab() {
               </div>
             )}
 
-            {/* Total summary */}
-            <div className="mt-6 pt-4 border-t border-[var(--border-card)]">
-              <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">{t('finance.resumenIngresos')}</p>
-              <div className="space-y-2">
-                {(currentBudget?.incomes || []).filter((i) => (i.status || 0) === 1).map((inc) => {
-                  const copValue = inc.currency === 'COP'
-                    ? parseFloat(inc.amount) || 0
-                    : Math.round(((parseFloat(inc.amount) || 0) - (parseFloat(inc.fee) || 0)) * (parseFloat(inc.rate) || 0));
-                  if (copValue <= 0) return null;
-                  return <Row key={inc.id} label={`${inc.label} (${inc.currency})`} value={formatCurrencyDec(copValue)} color={COLORS.savings} />;
-                })}
-                <div className="flex justify-between items-center pt-4 border-t border-[var(--border-card)]/50 mt-4">
-                  <span className="text-xs font-medium text-[var(--text-muted)]">Total Ingresos <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>
-                  <span className="text-sm font-bold text-[var(--text-primary)]">{formatCurrency(displayCalc.cop)}</span>
-                </div>
-              </div>
-            </div>
           </DashboardSection>
           </div>
   {/* === RIGHT COLUMN === */}
@@ -880,9 +885,9 @@ function TrackerTab() {
             onAdd={addFixedExpense}
             isComplete={fixedExpenses?.length > 0 && fixedExpenses.every(item => item.status === 1)}
           >
-            <ListHeader showCategory={true} />
+            <ListHeader />
             <div className="space-y-0">
-              {fixedExpenses.map((item) => (
+              {fixedExpenses.map((item, idx) => (
                 <TransactionRow
                   key={item.id}
                   item={item}
@@ -891,7 +896,14 @@ function TrackerTab() {
                   onDelete={deleteFixedExpense}
                   onStatusToggle={() => toggleFixedExpenseStatus(item.id)}
                   canDelete={true}
-                  showCategory={true}
+                  onMove={(dir) => {
+                    const swap = dir === 'up' ? idx - 1 : idx + 1;
+                    if (swap < 0 || swap >= fixedExpenses.length) return;
+                    updateFixedExpense(fixedExpenses[idx].id, 'sort_order', swap);
+                    updateFixedExpense(fixedExpenses[swap].id, 'sort_order', idx);
+                  }}
+                  isFirst={idx === 0}
+                  isLast={idx === fixedExpenses.length - 1}
                 />
               ))}
             </div>
@@ -912,7 +924,9 @@ function TrackerTab() {
           >
             <ListHeader />
             <div className="space-y-0">
-              {(selectedBudget?.gastosVar || []).map((item) => (
+              {(selectedBudget?.gastosVar || []).map((item, idx) => {
+                const varItems = selectedBudget?.gastosVar || [];
+                return (
                 <TransactionRow
                   key={item.id}
                   item={item}
@@ -921,8 +935,15 @@ function TrackerTab() {
                   onDelete={deleteVariableExpense}
                   onStatusToggle={() => toggleVariableExpenseStatus(item.id)}
                   canDelete={true}
-                />
-              ))}
+                  onMove={(dir) => {
+                    const swap = dir === 'up' ? idx - 1 : idx + 1;
+                    if (swap < 0 || swap >= varItems.length) return;
+                    updateVariableExpense(varItems[idx].id, 'sort_order', swap);
+                    updateVariableExpense(varItems[swap].id, 'sort_order', idx);
+                  }}
+                  isFirst={idx === 0}
+                  isLast={idx === varItems.length - 1}
+                />);})}
             </div>
             <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
               <span className="text-xs font-medium text-[var(--text-muted)]">Total Variables <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>
@@ -930,11 +951,6 @@ function TrackerTab() {
             </div>
           </DashboardSection>
           
-          <div className="bg-[var(--bg-input)] rounded-xl p-5 flex justify-between items-center">
-            <span className="text-sm font-medium text-[var(--text-primary)]">Total gastos del mes</span>
-            <span className="text-xl font-bold" style={{ color: COLORS.expenses }}>{formatCurrency(fixedTotal + displayVarTotal)}</span>
-          </div>
-        
         </div>
       </div>
 </div>
@@ -1005,9 +1021,11 @@ function PocketsTab() {
   );
 }
 
-function LiquidityTab() {
+function LiquidityTab({ sharedDate }) {
   const { userId } = useAuth();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(sharedDate || new Date());
+
+  useEffect(() => { if (sharedDate) setCurrentDate(sharedDate); }, [sharedDate]);
   const [data, setData] = useState(emptyMonth());
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState({ actual: false, pending: false, debt: false });
@@ -1039,9 +1057,6 @@ function LiquidityTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <DatePicker selectedDate={currentDate} onChange={setCurrentDate} monthOnly={true} />
-      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <StatCard title="Dinero Actual" amount={fmt(totals.actual)} icon={Wallet} colorTheme="green" subtitle="Este mes" />
         <StatCard title="Pendiente" amount={fmt(totals.pending)} icon={Clock} colorTheme="orange" subtitle="Por cobrar" />
@@ -1054,35 +1069,35 @@ function LiquidityTab() {
           const colTotal = items.reduce((acc, it) => acc + (Number(it.value) || 0), 0); const ColIcon = col.icon;
           return (
             <div key={col.key} className="glass-card p-6" style={{ overflow: 'visible' }}>
-              <div className="flex items-center justify-between mb-5 pb-4 border-b border-white/5">
+              <div className="flex items-center justify-between mb-5 pb-4 border-b border-[var(--border-card)]">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2.5 rounded-xl shrink-0" style={{ backgroundColor: `${accent}1a`, color: accent }}><ColIcon size={18} /></div>
-                  <h3 className="font-bold text-white text-base truncate">{col.title}</h3>
+                  <h3 className="font-bold text-[var(--text-primary)] text-sm tracking-wide uppercase">{col.title}</h3>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="font-bold text-sm font-number" style={{ color: accent }}>{fmt(colTotal)}</span>
-                  <button onClick={() => toggleEdit(col.key)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${isEditingCol ? 'bg-acid text-black' : 'bg-white/5 text-white/60 hover:text-white hover:bg-white/10'}`} title={isEditingCol ? 'Listo' : 'Editar'}>{isEditingCol ? <Check size={14} /> : <Pencil size={12} />}</button>
+                  <button onClick={() => toggleEdit(col.key)} className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${isEditingCol ? 'bg-acid text-black' : 'bg-[var(--bg-card-solid)] text-[var(--text-primary)] border border-[var(--border-card)] hover:bg-[var(--bg-input)]'}`} title={isEditingCol ? 'Listo' : 'Editar'}>{isEditingCol ? <Check size={14} /> : <Pencil size={12} />}</button>
                 </div>
               </div>
               <div className="space-y-1.5">
-                {items.length === 0 && <p className="text-center text-text-muted/50 text-xs italic py-1.5">{loading ? 'Cargando…' : 'Sin items aún'}</p>}
+                {items.length === 0 && <p className="text-center text-[var(--text-muted)] text-xs italic py-1.5">{loading ? 'Cargando…' : 'Sin items aún'}</p>}
                 <AnimatePresence initial={false}>
                   {items.map((it, idx) => (
                     <motion.div key={it.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                       {isEditingCol ? (
-                        <div className="flex items-center gap-2 group">
+                        <div className="flex items-center gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
                           <div className="flex flex-col items-center -my-1 shrink-0">
-                            <button onClick={() => moveItem(col.key, it.id, 'up')} disabled={idx === 0} className="text-text-muted/50 hover:text-white disabled:opacity-20 transition-colors leading-none" title="Subir"><ChevronUp size={13} /></button>
-                            <button onClick={() => moveItem(col.key, it.id, 'down')} disabled={idx === items.length - 1} className="text-text-muted/50 hover:text-white disabled:opacity-20 transition-colors leading-none" title="Bajar"><ChevronDown size={13} /></button>
+                            <button onClick={() => moveItem(col.key, it.id, 'up')} disabled={idx === 0} className="text-[var(--text-muted)]/50 hover:text-[var(--text-primary)] disabled:opacity-20 transition-colors leading-none" title="Subir"><ChevronUp size={13} /></button>
+                            <button onClick={() => moveItem(col.key, it.id, 'down')} disabled={idx === items.length - 1} className="text-[var(--text-muted)]/50 hover:text-[var(--text-primary)] disabled:opacity-20 transition-colors leading-none" title="Bajar"><ChevronDown size={13} /></button>
                           </div>
-                          <input type="text" value={it.name} onChange={(e) => updateLocal(col.key, it.id, 'name', e.target.value)} onBlur={() => persistItem(col.key, it.id)} placeholder={col.placeholder} className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-acid transition-colors" />
-                          <input type="text" inputMode="numeric" value={fmtInput(it.value)} onChange={(e) => updateLocal(col.key, it.id, 'value', Number(e.target.value.replace(/\D/g, '')) || 0)} onBlur={() => persistItem(col.key, it.id)} placeholder="$0" className="w-24 shrink-0 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white text-right font-number placeholder:text-white/25 focus:outline-none focus:border-acid transition-colors" />
-                          <button onClick={() => removeItem(col.key, it.id)} className="p-2 text-red-500/40 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors shrink-0" title="Eliminar"><Trash2 size={15} /></button>
+                          <input type="text" value={it.name} onChange={(e) => updateLocal(col.key, it.id, 'name', e.target.value)} onBlur={() => persistItem(col.key, it.id)} placeholder={col.placeholder} className="flex-1 min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/30 focus:outline-none focus:border-[var(--border-hover)]" />
+                          <input type="text" inputMode="numeric" value={fmtInput(it.value)} onChange={(e) => updateLocal(col.key, it.id, 'value', Number(e.target.value.replace(/\D/g, '')) || 0)} onBlur={() => persistItem(col.key, it.id)} placeholder="$0" className="w-24 shrink-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] text-right font-number placeholder:text-[var(--text-muted)]/30 focus:outline-none focus:border-[var(--border-hover)]" />
+                          <button onClick={() => removeItem(col.key, it.id)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors shrink-0" title="Eliminar"><Trash2 size={13} /></button>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 last:border-0">
-                          <span className="text-sm text-white truncate">{it.name || <span className="text-white/30 italic">Sin nombre</span>}</span>
-                          <span className="text-sm text-white font-number shrink-0">{fmt(it.value)}</span>
+                        <div className="flex items-center justify-between gap-3 py-2 border-b border-[var(--border-card)] last:border-b-0">
+                          <span className="text-[11px] text-[var(--text-primary)] font-medium truncate">{it.name || <span className="text-[var(--text-muted)] italic">Sin nombre</span>}</span>
+                          <span className="text-[11px] font-bold text-[var(--text-primary)] shrink-0">{fmt(it.value)}</span>
                         </div>
                       )}
                     </motion.div>
@@ -1090,7 +1105,7 @@ function LiquidityTab() {
                 </AnimatePresence>
               </div>
               {isEditingCol && (
-                <button onClick={() => addItem(col.key)} className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-white/15 text-text-muted hover:text-white hover:border-white/30 hover:bg-white/[0.03] transition-colors text-sm font-semibold">
+                <button onClick={() => addItem(col.key)} className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-[var(--border-card)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-hover)] hover:bg-white/[0.03] transition-colors text-sm font-semibold">
                   <Plus size={16} /> Agregar
                 </button>
               )}
