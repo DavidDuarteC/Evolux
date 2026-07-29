@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
+import { toast } from 'sonner';
 import * as budgetsDb from '../services/budgets';
 import * as fixedExpensesDb from '../services/fixedExpenses';
 import * as variableExpensesDb from '../services/variableExpenses';
@@ -95,15 +96,6 @@ export function MonthlyTrackerProvider({ children }) {
 
       clearTimeout(loadTimeoutId);
 
-      // Create default fixed expenses if none exist
-      if (!fixedData || fixedData.length === 0) {
-        fixedData = await Promise.all(
-          DEFAULT_FIXED_EXPENSES.map((item, idx) =>
-            fixedExpensesDb.createFixedExpense(userId, { ...item, sort_order: idx })
-          )
-        );
-      }
-
       // Create default budget for current month if none exist
       const now = new Date();
       const currentYear = now.getFullYear();
@@ -151,6 +143,14 @@ export function MonthlyTrackerProvider({ children }) {
           }),
         ]);
         incomesData = [...incomesData, ...defaultIncomes];
+
+        // Create default fixed expenses for the new budget
+        const defaultFixed = await Promise.all(
+          DEFAULT_FIXED_EXPENSES.map((item, idx) =>
+            fixedExpensesDb.createFixedExpense(userId, { ...item, sort_order: idx, budget_id: createdBudget.id })
+          )
+        );
+        fixedData = [...(fixedData || []), ...defaultFixed];
       }
 
       // ═══ Migration: create incomes from old budget fields ═══
@@ -203,7 +203,21 @@ export function MonthlyTrackerProvider({ children }) {
       }
       // ═══════════════════════════════════════════════════════
 
-      // Merge variable expenses and incomes into their budgets
+      // ═══ Migration: create default fixed expenses for budgets without them ═══
+      for (const budget of budgetsData) {
+        const hasFixed = fixedData.some((f) => f.budget_id === budget.id);
+        if (!hasFixed) {
+          const newFixed = await Promise.all(
+            DEFAULT_FIXED_EXPENSES.map((item, idx) =>
+              fixedExpensesDb.createFixedExpense(userId, { ...item, sort_order: idx, budget_id: budget.id })
+            )
+          );
+          fixedData = [...fixedData, ...newFixed];
+        }
+      }
+      // ═════════════════════════════════════════════════════════════
+
+      // Merge variable expenses, incomes, and fixed expenses into their budgets
       const budgetsWithData = budgetsData.map((budget) => ({
         ...budget,
         gastosVar: variablesData
@@ -211,6 +225,9 @@ export function MonthlyTrackerProvider({ children }) {
           .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
         incomes: incomesData
           .filter((i) => i.budget_id === budget.id)
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+        fixedExpenses: fixedData
+          .filter((f) => f.budget_id === budget.id)
           .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
       }));
 
@@ -220,7 +237,6 @@ export function MonthlyTrackerProvider({ children }) {
         return a.month - b.month;
       });
 
-      setFixedExpenses(fixedData || []);
       setBudgets(budgetsWithData);
       setDeposits(depositsData || []);
 
@@ -239,6 +255,15 @@ export function MonthlyTrackerProvider({ children }) {
   }, [loadData]);
 
   const currentBudget = budgets[currentIndex];
+
+  // Sync fixedExpenses with current budget's fixed expenses
+  useEffect(() => {
+    if (currentBudget?.fixedExpenses) {
+      setFixedExpenses(currentBudget.fixedExpenses);
+    } else {
+      setFixedExpenses([]);
+    }
+  }, [currentBudget]);
 
   // Wise balance: total deposits - EUR withdrawn from incomes
   const wiseBalance = useMemo(() => {
@@ -328,6 +353,11 @@ export function MonthlyTrackerProvider({ children }) {
     try {
       const parsedValue = field === 'amount' ? parseFloat(value) || 0 : value;
       setFixedExpenses((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: parsedValue } : item)));
+      // Also update in budgets array
+      setBudgets((prev) => prev.map((b) => ({
+        ...b,
+        fixedExpenses: (b.fixedExpenses || []).map((f) => f.id === id ? { ...f, [field]: parsedValue } : f),
+      })));
       await fixedExpensesDb.updateFixedExpense(id, userId, { [field]: parsedValue });
     } catch (error) {
       console.error('Error updating fixed expense:', error);
@@ -335,20 +365,30 @@ export function MonthlyTrackerProvider({ children }) {
   }, [userId]);
 
   const addFixedExpense = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || !currentBudget) return;
+    const budgetId = currentBudget.id;
     try {
-      const newItem = await fixedExpensesDb.createFixedExpense(userId, { label: 'Nuevo gasto', amount: 0, sort_order: fixedExpenses.length });
+      const newItem = await fixedExpensesDb.createFixedExpense(userId, {
+        label: 'Nuevo gasto', amount: 0, sort_order: fixedExpenses.length, budget_id: budgetId,
+      });
       setFixedExpenses((prev) => [...prev, newItem]);
+      setBudgets((prev) => prev.map((b) =>
+        b.id === budgetId ? { ...b, fixedExpenses: [...(b.fixedExpenses || []), newItem] } : b
+      ));
     } catch (error) {
       console.error('Error adding fixed expense:', error);
     }
-  }, [userId, fixedExpenses.length]);
+  }, [userId, currentBudget, fixedExpenses.length]);
 
   const deleteFixedExpense = useCallback(async (id) => {
     if (!userId) return;
     try {
       await fixedExpensesDb.deleteFixedExpense(id, userId);
       setFixedExpenses((prev) => prev.filter((item) => item.id !== id));
+      setBudgets((prev) => prev.map((b) => ({
+        ...b,
+        fixedExpenses: (b.fixedExpenses || []).filter((f) => f.id !== id),
+      })));
     } catch (error) {
       console.error('Error deleting fixed expense:', error);
     }
@@ -361,6 +401,10 @@ export function MonthlyTrackerProvider({ children }) {
     const nextStatus = ((item.status || 0) + 1) % 3;
     try {
       setFixedExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, status: nextStatus } : e)));
+      setBudgets((prev) => prev.map((b) => ({
+        ...b,
+        fixedExpenses: (b.fixedExpenses || []).map((f) => f.id === id ? { ...f, status: nextStatus } : f),
+      })));
       await fixedExpensesDb.updateFixedExpense(id, userId, { status: nextStatus });
     } catch (error) {
       console.error('Error toggling fixed expense status:', error);
@@ -529,7 +573,12 @@ export function MonthlyTrackerProvider({ children }) {
     const prev = budgets.find(
       (b) => Number(b.year) === prevYear && Number(b.month) === prevMonth
     );
-    if (!prev) return;
+    if (!prev) {
+      toast.warning('No hay datos del mes anterior para copiar');
+      return;
+    }
+
+    toast.success('Copiando datos del mes anterior...');
 
     try {
       // 1. Copy budget fields (income settings)
@@ -569,7 +618,23 @@ export function MonthlyTrackerProvider({ children }) {
         )
       );
 
-      // 2. Replace variable expenses with previous month's
+      // 2.5 Copy fixed expenses from previous month
+      const currentFixed = currentBudget.fixedExpenses || [];
+      for (const fe of currentFixed) {
+        if (fe.id) {
+          await fixedExpensesDb.deleteFixedExpense(fe.id, userId);
+        }
+      }
+      const prevFixed = prev.fixedExpenses || [];
+      const newFixed = await Promise.all(
+        prevFixed.map((fe, idx) =>
+          fixedExpensesDb.createFixedExpense(userId, {
+            label: fe.label, amount: fe.amount, sort_order: idx, budget_id: currentBudget.id,
+          })
+        )
+      );
+
+      // 3. Replace variable expenses with previous month's
       const currentVar = currentBudget.gastosVar || [];
       for (const g of currentVar) {
         if (g.id) {
@@ -598,14 +663,17 @@ export function MonthlyTrackerProvider({ children }) {
       setBudgets((prevBudgets) =>
         prevBudgets.map((b) => {
           if (b.id === currentBudget.id) {
-            return { ...b, ...budgetFields, gastosVar: newVariables, incomes: newIncomes };
+            const resetFixed = (b.fixedExpenses || []).map((fe) => ({ ...fe, status: 0 }));
+            return { ...b, ...budgetFields, gastosVar: newVariables, incomes: newIncomes, fixedExpenses: resetFixed };
           }
           return b;
         })
       );
       setFixedExpenses((prevFes) => prevFes.map((fe) => ({ ...fe, status: 0 })));
+      toast.success('Datos del mes anterior copiados correctamente');
     } catch (error) {
       console.error('Error copying from previous month:', error);
+      toast.error('Error al copiar datos del mes anterior');
     }
   }, [userId, currentBudget, budgets, fixedExpenses]);
 

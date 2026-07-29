@@ -6,11 +6,15 @@ const handleError = (error) => {
   throw error;
 };
 
-export const getFixedExpenses = async (userId) => {
-  const { data, error } = await supabase
+export const getFixedExpenses = async (userId, budgetId = null) => {
+  let query = supabase
     .from('monthly_fixed_expenses')
     .select('*')
-    .eq('user_id', userId)
+    .eq('user_id', userId);
+  if (budgetId) {
+    query = query.eq('budget_id', budgetId);
+  }
+  const { data, error } = await query
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
   if (error) handleError(error);
