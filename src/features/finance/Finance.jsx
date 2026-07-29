@@ -372,9 +372,17 @@ const ListHeader = ({ showCategory = false }) => (
   </div>
 );
 
-const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, showCategory = false }) => {
+const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, showCategory = false, onMove, isFirst, isLast }) => {
   return (
     <div className="flex items-center gap-1.5 sm:gap-2 py-1 border-b border-[var(--border-card)]/50 last:border-b-0 hover:bg-white/5 px-2 -mx-2 rounded-lg transition-colors min-h-[32px]">
+      {isEditing && onMove && (
+        <div className="w-4 flex flex-col items-center justify-center shrink-0 -my-1">
+          <button onClick={(e) => { e.stopPropagation(); onMove('up'); }} disabled={isFirst}
+            className="text-text-muted/50 hover:text-white disabled:opacity-20 transition-colors leading-none"><ChevronUp size={13} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onMove('down'); }} disabled={isLast}
+            className="text-text-muted/50 hover:text-white disabled:opacity-20 transition-colors leading-none"><ChevronDown size={13} /></button>
+        </div>
+      )}
       <div className="shrink-0 flex items-center justify-center h-full">
         <StatusBulb status={item.status || 0} onClick={onStatusToggle} readOnly={!isEditing} />
       </div>
@@ -639,6 +647,21 @@ function TrackerTab() {
     await annualExpensesDb.updateAnnualExpense(id, userId, { status: nextStatus });
   };
 
+  const moveAnnualExpense = async (id, direction) => {
+    const idx = annualExpenses.findIndex((a) => a.id === id);
+    if (idx === -1) return;
+    const swap = direction === 'up' ? idx - 1 : idx + 1;
+    if (swap < 0 || swap >= annualExpenses.length) return;
+    const newOrder = [...annualExpenses];
+    [newOrder[idx], newOrder[swap]] = [newOrder[swap], newOrder[idx]];
+    setAnnualExpenses(newOrder);
+    // Persist sort_order for both swapped items
+    await Promise.all([
+      annualExpensesDb.updateAnnualExpense(newOrder[idx].id, userId, { sort_order: idx }),
+      annualExpensesDb.updateAnnualExpense(newOrder[swap].id, userId, { sort_order: swap }),
+    ]);
+  };
+
   const handleAddDeposit = () => {
     const val = parseFloat(depositAmount) || 0;
     if (val <= 0) return;
@@ -714,7 +737,7 @@ function TrackerTab() {
             isComplete={annualExpenses.length > 0 && annualExpenses.every(item => item.status === 1)}
           >
             <ListHeader />
-            {annualExpenses.map((item) => (
+            {annualExpenses.map((item, idx) => (
               <TransactionRow
                 key={item.id}
                 item={{ ...item, name: item.label, date: item.payment_date }}
@@ -723,6 +746,9 @@ function TrackerTab() {
                 onDelete={(id) => deleteAnnualExpense(id)}
                 onStatusToggle={() => toggleAnnualStatus(item.id)}
                 canDelete={true}
+                onMove={(dir) => moveAnnualExpense(item.id, dir)}
+                isFirst={idx === 0}
+                isLast={idx === annualExpenses.length - 1}
               />
             ))}
           </DashboardSection>
@@ -882,7 +908,7 @@ function TrackerTab() {
           >
             <ListHeader showCategory={true} />
             <div className="space-y-0">
-              {fixedExpenses.map((item) => (
+              {fixedExpenses.map((item, idx) => (
                 <TransactionRow
                   key={item.id}
                   item={item}
@@ -892,6 +918,14 @@ function TrackerTab() {
                   onStatusToggle={() => toggleFixedExpenseStatus(item.id)}
                   canDelete={true}
                   showCategory={true}
+                  onMove={(dir) => {
+                    const swap = dir === 'up' ? idx - 1 : idx + 1;
+                    if (swap < 0 || swap >= fixedExpenses.length) return;
+                    updateFixedExpense(fixedExpenses[idx].id, 'sort_order', swap);
+                    updateFixedExpense(fixedExpenses[swap].id, 'sort_order', idx);
+                  }}
+                  isFirst={idx === 0}
+                  isLast={idx === fixedExpenses.length - 1}
                 />
               ))}
             </div>
@@ -912,7 +946,9 @@ function TrackerTab() {
           >
             <ListHeader />
             <div className="space-y-0">
-              {(selectedBudget?.gastosVar || []).map((item) => (
+              {(selectedBudget?.gastosVar || []).map((item, idx) => {
+                const varItems = selectedBudget?.gastosVar || [];
+                return (
                 <TransactionRow
                   key={item.id}
                   item={item}
@@ -921,8 +957,15 @@ function TrackerTab() {
                   onDelete={deleteVariableExpense}
                   onStatusToggle={() => toggleVariableExpenseStatus(item.id)}
                   canDelete={true}
-                />
-              ))}
+                  onMove={(dir) => {
+                    const swap = dir === 'up' ? idx - 1 : idx + 1;
+                    if (swap < 0 || swap >= varItems.length) return;
+                    updateVariableExpense(varItems[idx].id, 'sort_order', swap);
+                    updateVariableExpense(varItems[swap].id, 'sort_order', idx);
+                  }}
+                  isFirst={idx === 0}
+                  isLast={idx === varItems.length - 1}
+                />);})}
             </div>
             <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
               <span className="text-xs font-medium text-[var(--text-muted)]">Total Variables <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>
