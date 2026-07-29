@@ -11,9 +11,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useUser } from '../../context/UserContext';
-import { useFinance } from '../finance/context/FinanceContext';
 import { useMonthlyTracker } from '../monthlyTracker/context/MonthlyTrackerContext';
 import { supabase } from '../../shared/services/supabase';
+import * as annualExpensesDb from '../finance/services/annualExpenses';
 import StatCard from '../../shared/components/StatCard';
 import DatePicker from '../../shared/components/DatePicker';
 import PageHeader from '../../shared/components/PageHeader';
@@ -433,8 +433,8 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
 
 
 function TrackerTab() {
-  const { data: financeData, updateDb: updateFinDb } = useFinance();
   const { t } = useLanguage();
+  const [annualExpenses, setAnnualExpenses] = useState([]);
   const {
     currentBudget, calculations, updateBudgetField, formatCurrency, formatCurrencyDec, formatEur, formatUsd,
     deposits, wiseBalance,
@@ -533,18 +533,18 @@ function TrackerTab() {
   }, [selectedBudget]);
 
   const displayCalc = useMemo(() => {
-    if (!selectedBudget) return { wiseCop: 0, manualCop: 0, usdCop: 0, cop: 0 };
+    if (!selectedBudget) return { cop: 0 };
     const b = selectedBudget;
-    const wd = b.withdrawals || [];
-    const wCop = wd.reduce((s, w) => s + (parseFloat(w.cop_received) || 0), 0);
-    const leg = Math.round((parseFloat(b.salary_eur) - parseFloat(b.wise_fee_eur)) * parseFloat(b.exchange_rate));
-    const wiseCop = wd.length > 0 ? wCop : (parseFloat(b.salary_eur) > 0 ? leg : 0);
-    const manualCop = Math.round(parseFloat(b.manual_income_cop) || 0);
-    const usdAmt = parseFloat(b.usd_amount) || 0;
-    const usdR = parseFloat(b.usd_rate) || 0;
-    const usdF = parseFloat(b.usd_fee) || 0;
-    const usdCop = Math.round((usdAmt - usdF) * usdR);
-    return { wiseCop, manualCop, usdCop, cop: wiseCop + manualCop + usdCop, hasWithdrawals: wd.length > 0 };
+    const budgetIncomes = b.incomes || [];
+    const totalCOP = budgetIncomes
+      .filter((i) => (i.status || 0) === 1)
+      .reduce((sum, i) => {
+        const amt = parseFloat(i.amount) || 0;
+        if (i.currency === 'COP') return sum + amt;
+        const net = amt - (parseFloat(i.fee) || 0);
+        return sum + Math.round(net * (parseFloat(i.rate) || 0));
+      }, 0);
+    return { cop: totalCOP, hasWithdrawals: false };
   }, [selectedBudget]);
 
   // ── Total deposited EUR (global, for wiseBalance) ──
@@ -595,6 +595,48 @@ function TrackerTab() {
         console.error('Error fetching USD rate:', err);
       }
     }
+  };
+
+  // ── Annual Expenses ──
+  const { userId } = useAuth();
+  useEffect(() => {
+    if (!userId) return;
+    annualExpensesDb.getAnnualExpenses(userId).then(setAnnualExpenses).catch(() => {});
+  }, [userId]);
+
+  const addAnnualExpense = async () => {
+    if (!userId) return;
+    const d = new Date();
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const m = months[d.getMonth()];
+    const day = String(d.getDate()).padStart(2, '0');
+    try {
+      const newItem = await annualExpensesDb.createAnnualExpense(userId, {
+        label: 'Nuevo Item', amount: '0', payment_date: `${m} ${day}`, status: 0,
+      });
+      setAnnualExpenses((prev) => [...prev, newItem]);
+    } catch (err) { console.error(err); }
+  };
+
+  const updateAnnualExpense = async (id, field, value) => {
+    if (!userId) return;
+    setAnnualExpenses((prev) => prev.map((a) => a.id === id ? { ...a, [field]: value } : a));
+    await annualExpensesDb.updateAnnualExpense(id, userId, { [field]: value });
+  };
+
+  const deleteAnnualExpense = async (id) => {
+    if (!userId) return;
+    setAnnualExpenses((prev) => prev.filter((a) => a.id !== id));
+    await annualExpensesDb.deleteAnnualExpense(id, userId);
+  };
+
+  const toggleAnnualStatus = async (id) => {
+    if (!userId) return;
+    const item = annualExpenses.find((a) => a.id === id);
+    if (!item) return;
+    const nextStatus = ((item.status || 0) + 1) % 3;
+    setAnnualExpenses((prev) => prev.map((a) => a.id === id ? { ...a, status: nextStatus } : a));
+    await annualExpensesDb.updateAnnualExpense(id, userId, { status: nextStatus });
   };
 
   const handleAddDeposit = () => {
@@ -668,33 +710,18 @@ function TrackerTab() {
             title="Gastos Anuales"
             isEditing={uiState.annual}
             onEdit={() => toggleEdit('annual')}
-            onAdd={() => {
-              const d = new Date();
-              const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-              const m = months[d.getMonth()];
-              const day = String(d.getDate()).padStart(2, '0');
-              updateFinDb('annual', 'add', {
-                id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
-                name: 'Nuevo Item',
-                date: `${m} ${day}`,
-                amount: '0',
-                status: 0,
-              });
-            }}
-            isComplete={financeData?.annual?.length > 0 && financeData.annual.every(item => item.status === 1)}
+            onAdd={addAnnualExpense}
+            isComplete={annualExpenses.length > 0 && annualExpenses.every(item => item.status === 1)}
           >
             <ListHeader />
-            {financeData?.annual?.map((item) => (
+            {annualExpenses.map((item) => (
               <TransactionRow
                 key={item.id}
-                item={item}
+                item={{ ...item, name: item.label, date: item.payment_date }}
                 isEditing={uiState.annual}
-                onChange={(id, field, val) => updateFinDb('annual', 'update', { id, field, value: val })}
-                onDelete={(id) => updateFinDb('annual', 'delete', { id })}
-                onStatusToggle={() => {
-                  const next = ((item.status || 0) + 1) % 3;
-                  updateFinDb('annual', 'update', { id: item.id, field: 'status', value: next });
-                }}
+                onChange={(id, field, val) => updateAnnualExpense(id, field, val)}
+                onDelete={(id) => deleteAnnualExpense(id)}
+                onStatusToggle={() => toggleAnnualStatus(item.id)}
                 canDelete={true}
               />
             ))}
