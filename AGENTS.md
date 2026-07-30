@@ -37,20 +37,21 @@ npm run test:watch # Vitest in watch mode
 - `zustand` is in `package.json` but **not used** anywhere in the codebase
 
 ### Directory Map
+### Directory Map
 | Path | Purpose |
 |------|---------|
-| `src/features/*/` | Feature folders (auth, finance, monthlyTracker, tasks, goals, fitness, analytics, profile, dashboard) |
-| `src/features/*/components/` | Feature-specific UI components |
+| `src/features/*/` | Feature folders (auth, finance, monthlyTracker, tasks, goals, fitness, profile, dashboard) |
+| `src/features/finance/components/` | Modular tabs: `IncomeExpensesTab.jsx` (Ingresos y Gastos), `LiquidityTab.jsx` (Liquidez) |
 | `src/features/*/context/` | Feature-specific React Context providers (Auth, Finance, Task, MonthlyTracker) |
 | `src/features/*/services/` | Feature-specific Supabase data access (one per table) |
 | `src/features/*/hooks/` | Feature-specific custom hooks |
 | `src/features/*/utils/` | Feature-specific utilities |
-| `src/shared/components/` | Shared UI components (StatCard, DatePicker, ColorPicker, etc.) |
+| `src/shared/components/` | Shared UI components (`StatCard`, `DatePicker`, `CalendarInput`, `ConfirmDialog`, `ColorPicker`, etc.) |
 | `src/shared/hooks/` | Shared custom hooks |
 | `src/shared/services/` | Shared services: `supabase.js` (client init), `api.js` (Google Apps Script) |
 | `src/shared/lib/` | `constants.js` (statuses, types, months, theme colors), `validation.js` (Zod schemas) |
 | `src/layout/` | MainLayout + Sidebar |
-| `src/context/` | App-wide React Context providers (Theme, User, Toast) |
+| `src/context/` | App-wide React Context providers (Theme, User) |
 | `src/hooks/` | Custom hooks (only `useAuth.js` — re-exports from auth feature) |
 | `sql/` | `supabase_schema.sql` (canonical DB schema with RLS), `migration_monthly_tracker.sql`, `migration_wise.sql`, `migration_profiles_wise.sql`, `migration_profiles_targets.sql` |
 | `tests/` | Vitest tests — `db-tables.test.js` (Supabase table verification), `tracker-calculations.test.js` (calculation tests) |
@@ -69,12 +70,17 @@ npm run test:watch # Vitest in watch mode
 - `FinanceContext.loadData()` auto-creates a default account named "Principal" with amount 0 if no accounts exist
 - Currency formatting uses Colombian locale: `$X.XXX` (dots as thousands separators)
 - Dates: frontend uses "Mes DD" format (e.g. "Ene 15"), database uses "YYYY-MM-DD"
-- **Finance.jsx** tabs: Ingreso (Wise deposits/withdrawals + Manual COP), Gastos (fijos/variables), Historial (Recharts), Liquidez (wallet_items). The tracker uses `MonthlyTrackerContext`, the wallet uses `wallet_items` table directly.
-- **Profile.jsx** has a Wise toggle (`profiles.use_wise`) that shows/hides the Wise section in Finance → Ingreso. When off, only Manual COP input is shown.
-- **Dashboard.jsx** is read-only (no transaction editing). Shows stats from tracker, CDT/Colchón as goals with targets (`profiles.savings_target`, `profiles.cushion_target`), accumulated progress (from saved months), sliders for `savings_pct`/`cushion_pct`, and "Guardar mes" / "Crear mes siguiente" buttons.
+- **Finance.jsx** is modularized into 2 tabs:
+  1. `IncomeExpensesTab.jsx`: Ingresos Fijos (Wise deposits/withdrawals + Manual COP/USD), Gastos Anuales, Gastos Fijos y Gastos Variables. Section buttons ("Copiar mes anterior" y "Limpiar") trigger a `ConfirmModal` popup with clear descriptions before execution. Row up/down arrows reorder items visually and persist `sort_order`.
+  2. `LiquidityTab.jsx`: Wallet items (actual money accounts, pending income, debts).
+- **Profile.jsx** has a Wise toggle (`profiles.use_wise`) that shows/hides the Wise section in Finance → Ingresos. When off, only Manual COP/USD input is shown.
+- **Dashboard.jsx** is the single central hub for Analytics & History. Multi-bar chart compares **Ingresos vs Gastos Fijos vs Gastos Variables vs Ahorro** with range selectors (3M, 6M, 1A), expense donut chart, CDT/Colchón accumulated savings area chart, task/habit rates, financial goals progress, and registered months history.
+
+### Calendar Input
+- `CalendarInput.jsx` uses `React.createPortal` attached to `document.body` with fixed viewport positioning and window scroll/resize listeners to prevent clipping inside `.glass-card` (`overflow: hidden`). Styled using theme CSS variables (`bg-[var(--bg-card-solid)]`, `text-[var(--text-primary)]`, `border-[var(--border-card)]`).
 
 ### Monthly Tracker
-- Feature folder: `src/features/monthlyTracker/` (context + services, UI lives in `src/features/finance/Finance.jsx`)
+- Feature folder: `src/features/monthlyTracker/` (context + services, UI lives in `src/features/finance/components/IncomeExpensesTab.jsx`)
 - Tracks monthly income (Wise EUR→COP or manual COP), fixed/variable expenses, savings/cushion percentages, and monthly history.
 - Tables: `monthly_budgets`, `monthly_fixed_expenses`, `monthly_variable_expenses`, `wise_deposits`, `wise_withdrawals` (see `sql/supabase_schema.sql`, `sql/migration_monthly_tracker.sql`, `sql/migration_wise.sql`).
 - `monthly_budgets.income_mode` can be `'wise'` (default) or `'manual'`. When `'manual'`, `manual_income_cop` is used instead of the Wise EUR→COP conversion.
@@ -98,13 +104,6 @@ npm run test:watch # Vitest in watch mode
 - Toggling light mode adds the `light` class to `<html>` (see `ThemeContext`)
 - All colors are CSS custom properties defined in `src/index.css`
 - Fonts loaded from Google Fonts: Poppins, Inter, Space Mono
-
-### Monthly Tracker
-- Feature folder: `src/features/monthlyTracker/`
-- Tracks EUR salary → Wise fee → COP conversion, fixed/variable expenses, savings/cushion percentages, and monthly history.
-- Tables: `monthly_budgets`, `monthly_fixed_expenses`, `monthly_variable_expenses` (see `sql/supabase_schema.sql`).
-- Sensitive fields are encrypted via `src/shared/lib/crypto.js`.
-- New tab `tracker` added to `Sidebar` and `AppRoutes`.
 
 ### Validation
 - Forms use `react-hook-form` with `@hookform/resolvers` + Zod
