@@ -28,21 +28,29 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, itemsPre
           </div>
         </div>
 
-        {itemsPreview && itemsPreview.length > 0 && (
+        {itemsPreview !== undefined && (
           <div className="bg-[var(--bg-input)] border border-[var(--border-card)] rounded-xl p-3 max-h-36 overflow-y-auto space-y-1.5">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)] block mb-1">
-              Elementos a copiar ({itemsPreview.length}):
-            </span>
-            {itemsPreview.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center text-xs">
-                <span className="text-[var(--text-primary)] font-medium truncate mr-2">
-                  {item.label || item.name || 'Sin concepto'}
+            {itemsPreview.length > 0 ? (
+              <>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)] block mb-1">
+                  Elementos a copiar ({itemsPreview.length}):
                 </span>
-                <span className="text-[var(--text-muted)] font-semibold shrink-0">
-                  {item.amountDisplay || `$${Number(item.amount || 0).toLocaleString('es-CO')}`}
-                </span>
-              </div>
-            ))}
+                {itemsPreview.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-xs">
+                    <span className="text-[var(--text-primary)] font-medium truncate mr-2">
+                      {item.label || item.name || 'Sin concepto'}
+                    </span>
+                    <span className="text-[var(--text-muted)] font-semibold shrink-0">
+                      {item.amountDisplay || `$${Number(item.amount || 0).toLocaleString('es-CO')}`}
+                    </span>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <span className="text-xs text-[var(--text-muted)] italic block text-center py-1">
+                No hay elementos en el mes anterior para copiar.
+              </span>
+            )}
           </div>
         )}
 
@@ -246,15 +254,19 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
     copyVariableExpensesFromPreviousMonth, clearVariableExpenses,
     moveIncome,
     setCurrentIndex, MONTHS_LONG,
+    budgets: contextBudgets,
   } = useMonthlyTracker();
+
+  const activeBudgets = contextBudgets || allBudgets || [];
 
   // Selected budget based on the shared picker (independent of currentBudget)
   const selectedBudget = useMemo(() => {
     if (!pickerDate) return currentBudget;
     const y = pickerDate.getFullYear();
     const m = pickerDate.getMonth();
-    return allBudgets?.find(b => Number(b.year) === y && Number(b.month) === m) || null;
-  }, [allBudgets, pickerDate, currentBudget]);
+    return activeBudgets.find(b => Number(b.year) === y && Number(b.month) === m) || null;
+  }, [activeBudgets, pickerDate, currentBudget]);
+
   const { user } = useUser();
   const useWise = user.useWise !== false;
   const useUsd = user.useUsd === true;
@@ -273,14 +285,14 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
 
   // Previous month budget calculation for modal preview
   const prevBudget = useMemo(() => {
-    if (!selectedBudget || !allBudgets) return null;
+    if (!selectedBudget || !activeBudgets.length) return null;
     const curMonth = Number(selectedBudget.month);
     const curYear = Number(selectedBudget.year);
     let prevMonth = curMonth - 1;
     let prevYear = curYear;
     if (prevMonth < 0) { prevMonth = 11; prevYear = curYear - 1; }
-    return allBudgets.find((b) => Number(b.year) === prevYear && Number(b.month) === prevMonth) || null;
-  }, [selectedBudget, allBudgets]);
+    return activeBudgets.find((b) => Number(b.year) === prevYear && Number(b.month) === prevMonth) || null;
+  }, [selectedBudget, activeBudgets]);
 
   const promptCopyIncomes = () => {
     const prevItems = prevBudget?.incomes || [];
