@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Wallet, Plus, Trash2, Pencil, Check, X,
+  Wallet, Plus, Trash2, Pencil, Check, X, ChevronDown,
   Database, DollarSign, TrendingDown, RotateCcw, Eraser, AlertTriangle,
 } from 'lucide-react';
 import { useLanguage } from '../../../context/LanguageContext';
@@ -712,26 +712,19 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                       <>
                         <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] flex-1" />
                         <CalendarInput value={incDate} onChange={(val) => setIncField(inc.id, 'date', val)} placeholder="Fecha" />
-                        <div className="flex gap-0.5 bg-[var(--bg-input)] rounded overflow-hidden shrink-0">
-                          {[
-                            { label: 'C', value: 'COP', title: 'COP' },
-                            ...(useWise ? [{ label: 'E', value: 'EUR', title: 'EUR' }] : []),
-                            ...(useUsd ? [{ label: 'U', value: 'USD', title: 'USD' }] : []),
-                          ].map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              title={opt.title}
-                              onClick={() => handleCurrencyChange(inc, opt.value)}
-                              className={`px-1.5 py-1 text-[10px] font-bold tracking-wider transition-colors ${
-                                local.currency === opt.value
-                                  ? 'bg-acid text-black'
-                                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                        <div className="relative shrink-0">
+                          <select
+                            value={local.currency}
+                            onChange={(e) => handleCurrencyChange(inc, e.target.value)}
+                            className="appearance-none bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 pr-6 text-[11px] font-medium text-[var(--text-primary)] focus:outline-none focus:border-acid cursor-pointer"
+                          >
+                            <option value="COP">{'\u{1F1E8}\u{1F1F4}'} COP</option>
+                            {useWise && <option value="EUR">{'\u{1F1EA}\u{1F1FA}'} EUR</option>}
+                            {useUsd && <option value="USD">{'\u{1F1FA}\u{1F1F8}'} USD</option>}
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[var(--text-muted)]">
+                            <ChevronDown size={12} />
+                          </div>
                         </div>
                         <input type="text" inputMode="decimal" value={local.amount} onChange={(e) => {
                           const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
