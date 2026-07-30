@@ -13,7 +13,7 @@ import StatCard from '../../../shared/components/StatCard';
 import CalendarInput from '../../../shared/components/CalendarInput';
 import { toast } from 'sonner';
 
-const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, confirmText, isDanger }) => {
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, itemsPreview, confirmText, isDanger }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
@@ -22,11 +22,30 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, confirmT
           <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${isDanger ? 'bg-red-500/10 text-red-500' : 'bg-acid/10 text-acid'}`}>
             {isDanger ? <AlertTriangle size={22} /> : <RotateCcw size={22} />}
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className="font-bold text-base text-[var(--text-primary)]">{title}</h3>
             <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">{description}</p>
           </div>
         </div>
+
+        {itemsPreview && itemsPreview.length > 0 && (
+          <div className="bg-[var(--bg-input)] border border-[var(--border-card)] rounded-xl p-3 max-h-36 overflow-y-auto space-y-1.5">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)] block mb-1">
+              Elementos a copiar ({itemsPreview.length}):
+            </span>
+            {itemsPreview.map((item, idx) => (
+              <div key={idx} className="flex justify-between items-center text-xs">
+                <span className="text-[var(--text-primary)] font-medium truncate mr-2">
+                  {item.label || item.name || 'Sin concepto'}
+                </span>
+                <span className="text-[var(--text-muted)] font-semibold shrink-0">
+                  {item.amountDisplay || `$${Number(item.amount || 0).toLocaleString('es-CO')}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border-card)]/50">
           <button
             onClick={onClose}
@@ -252,11 +271,31 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
 
   const closeConfirmModal = () => setConfirmModal((prev) => ({ ...prev, isOpen: false }));
 
+  // Previous month budget calculation for modal preview
+  const prevBudget = useMemo(() => {
+    if (!selectedBudget || !allBudgets) return null;
+    const curMonth = Number(selectedBudget.month);
+    const curYear = Number(selectedBudget.year);
+    let prevMonth = curMonth - 1;
+    let prevYear = curYear;
+    if (prevMonth < 0) { prevMonth = 11; prevYear = curYear - 1; }
+    return allBudgets.find((b) => Number(b.year) === prevYear && Number(b.month) === prevMonth) || null;
+  }, [selectedBudget, allBudgets]);
+
   const promptCopyIncomes = () => {
+    const prevItems = prevBudget?.incomes || [];
+    const preview = prevItems.map((inc) => ({
+      label: inc.label,
+      amountDisplay: inc.currency === 'COP'
+        ? `$${Number(inc.amount || 0).toLocaleString('es-CO')}`
+        : `${inc.amount} ${inc.currency}`,
+    }));
+
     setConfirmModal({
       isOpen: true,
       title: 'Copiar Ingresos Fijos',
-      description: '¿Deseas copiar los ingresos fijos del mes anterior? Los datos actuales de ingresos fijos de este mes serán reemplazados por los del mes anterior.',
+      description: '¿Deseas copiar los siguientes ingresos del mes anterior en estado neutro? Reemplazarán los actuales.',
+      itemsPreview: preview,
       confirmText: 'Sí, copiar ingresos',
       isDanger: false,
       onConfirm: copyIncomesFromPreviousMonth,
@@ -275,10 +314,17 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
   };
 
   const promptCopyFixed = () => {
+    const prevItems = prevBudget?.fixedExpenses || [];
+    const preview = prevItems.map((fe) => ({
+      label: fe.label,
+      amountDisplay: `$${Number(fe.amount || 0).toLocaleString('es-CO')}`,
+    }));
+
     setConfirmModal({
       isOpen: true,
       title: 'Copiar Gastos Fijos',
-      description: '¿Deseas copiar los gastos fijos del mes anterior? Los datos actuales de gastos fijos de este mes serán reemplazados por los del mes anterior.',
+      description: '¿Deseas copiar los siguientes gastos fijos del mes anterior en estado neutro? Reemplazarán los actuales.',
+      itemsPreview: preview,
       confirmText: 'Sí, copiar gastos fijos',
       isDanger: false,
       onConfirm: copyFixedExpensesFromPreviousMonth,
@@ -297,10 +343,17 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
   };
 
   const promptCopyVariables = () => {
+    const prevItems = prevBudget?.gastosVar || [];
+    const preview = prevItems.map((g) => ({
+      label: g.label,
+      amountDisplay: `$${Number(g.amount || 0).toLocaleString('es-CO')}`,
+    }));
+
     setConfirmModal({
       isOpen: true,
       title: 'Copiar Gastos Variables',
-      description: '¿Deseas copiar los gastos variables del mes anterior? Los datos actuales de gastos variables de este mes serán reemplazados por los del mes anterior.',
+      description: '¿Deseas copiar los siguientes gastos variables del mes anterior en estado neutro? Reemplazarán los actuales.',
+      itemsPreview: preview,
       confirmText: 'Sí, copiar gastos variables',
       isDanger: false,
       onConfirm: copyVariableExpensesFromPreviousMonth,
