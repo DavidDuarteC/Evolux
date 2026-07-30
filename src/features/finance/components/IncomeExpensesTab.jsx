@@ -477,7 +477,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
   }, [selectedBudget]);
 
   const displayVarTotal = (selectedBudget?.gastosVar || []).reduce((s, v) => s + (parseFloat(v.amount) || 0), 0);
-  const fixedTotalAll = fixedExpenses.reduce((s, f) => s + (parseFloat(f.amount) || 0), 0);
+  const fixedTotalAll = (selectedBudget?.fixedExpenses || []).reduce((s, f) => s + (parseFloat(f.amount) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -706,11 +706,13 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
             onAdd={addFixedExpense}
             onCopyPrev={promptCopyFixed}
             onClear={promptClearFixed}
-            isComplete={fixedExpenses?.length > 0 && fixedExpenses.every(item => item.status === 1)}
+            isComplete={(selectedBudget?.fixedExpenses || []).length > 0 && (selectedBudget?.fixedExpenses || []).every(item => item.status === 1)}
           >
             <ListHeader showDate={true} />
             <div className="space-y-0">
-              {fixedExpenses.map((item, idx) => (
+              {(selectedBudget?.fixedExpenses || []).map((item, idx) => {
+                const fixedItems = selectedBudget?.fixedExpenses || [];
+                return (
                 <TransactionRow
                   key={item.id}
                   item={item}
@@ -721,10 +723,9 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   canDelete={true}
                   onMove={(dir) => moveFixedExpense(item.id, dir)}
                   isFirst={idx === 0}
-                  isLast={idx === fixedExpenses.length - 1}
+                  isLast={idx === fixedItems.length - 1}
                   showDate={true}
-                />
-              ))}
+                />);})}
             </div>
             <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
               <span className="text-xs font-medium text-[var(--text-muted)]">Total Fijos <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>

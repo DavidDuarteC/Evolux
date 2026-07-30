@@ -948,25 +948,6 @@ export function MonthlyTrackerProvider({ children }) {
         usd_fee: last.usd_fee || '0', usd_cop: last.usd_cop || '0',
       });
 
-      const newFixed = await Promise.all(
-        (last.fixedExpenses || []).map((fe, idx) =>
-          fixedExpensesDb.createFixedExpense(userId, {
-            label: fe.label,
-            amount: fe.amount,
-            sort_order: idx,
-            budget_id: createdBudget.id,
-            status: 0,
-            payment_date: fe.payment_date || fe.date || '',
-          })
-        )
-      );
-
-      const newVariables = await Promise.all(
-        (last.gastosVar || []).map((g, idx) =>
-          variableExpensesDb.createVariableExpense(userId, createdBudget.id, { label: g.label, amount: g.amount, sort_order: idx })
-        )
-      );
-
       const newIncomes = await Promise.all(
         (last.incomes || []).map((inc, idx) =>
           incomesDb.createIncome(userId, createdBudget.id, {
@@ -990,8 +971,8 @@ export function MonthlyTrackerProvider({ children }) {
 
       const budgetWithIncomes = {
         ...createdBudget,
-        fixedExpenses: newFixed,
-        gastosVar: newVariables,
+        fixedExpenses: [],
+        gastosVar: [],
         withdrawals: [],
         incomes: finalIncomes,
       };
