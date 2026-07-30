@@ -707,8 +707,8 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   <div key={inc.id} className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
                     <StatusBulb status={inc.status || 0} onClick={() => toggleIncomeStatus(inc.id)} />
                     {uiState.fixedIncome ? (
-                      <>
-                        <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] flex-1" />
+                      <div className="flex flex-wrap items-center gap-2 w-full">
+                        <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 flex-1 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
                         <CalendarInput value={incDate} onChange={(val) => setIncField(inc.id, 'date', val)} placeholder="Fecha" />
                         <div className="flex gap-0.5 bg-[var(--bg-input)] rounded overflow-hidden shrink-0">
                           {[
@@ -720,7 +720,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                               key={opt.value}
                               type="button"
                               onClick={() => handleCurrencyChange(inc, opt.value)}
-                              className={`px-2 py-1 text-[11px] font-medium transition-colors ${
+                              className={`px-2 py-1.5 text-[11px] font-medium transition-colors ${
                                 local.currency === opt.value
                                   ? 'bg-acid text-black'
                                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -733,26 +733,26 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                         <input type="text" inputMode="decimal" value={local.amount} onChange={(e) => {
                           const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                           setIncField(inc.id, 'amount', v);
-                        }} onBlur={() => saveInc(inc.id)} placeholder="0" className="w-20 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                        }} onBlur={() => saveInc(inc.id)} placeholder="Monto" className="w-24 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                         {local.currency !== 'COP' ? (
                           <>
                             <input type="text" inputMode="decimal" value={local.fee} onChange={(e) => {
                               const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                               setIncField(inc.id, 'fee', v);
-                            }} onBlur={() => saveInc(inc.id)} placeholder="Fee" className="w-[60px] bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                            }} onBlur={() => saveInc(inc.id)} placeholder="Comisión" className="w-[70px] bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                             <input type="text" inputMode="decimal" value={local.rate} onChange={(e) => {
                               const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                               setIncField(inc.id, 'rate', v);
-                            }} onBlur={() => saveInc(inc.id)} placeholder="Tasa" className="w-20 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                            }} onBlur={() => saveInc(inc.id)} placeholder="Tasa" className="w-[70px] bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                           </>
                         ) : (useWise || useUsd) ? (
                           <>
-                            <div className="w-[60px] shrink-0" />
-                            <div className="w-20 shrink-0" />
+                            <div className="w-[70px] shrink-0" />
+                            <div className="w-[70px] shrink-0" />
                           </>
                         ) : null}
                         <button onClick={() => deleteIncome(inc.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0"><Trash2 size={13} /></button>
-                      </>
+                      </div>
                     ) : (
                       <div className="flex-1 flex items-center justify-between min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
