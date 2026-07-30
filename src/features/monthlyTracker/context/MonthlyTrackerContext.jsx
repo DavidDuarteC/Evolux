@@ -193,20 +193,6 @@ export function MonthlyTrackerProvider({ children }) {
 
         incomesData = [...incomesData, ...newIncomes];
       }
-      // ═══════════════════════════════════════════════════════
-
-      // ═══ Migration: create default fixed expenses for budgets without them ═══
-      for (const budget of budgetsData) {
-        const hasFixed = fixedData.some((f) => f.budget_id === budget.id);
-        if (!hasFixed) {
-          const newFixed = await Promise.all(
-            DEFAULT_FIXED_EXPENSES.map((item, idx) =>
-              fixedExpensesDb.createFixedExpense(userId, { ...item, sort_order: idx, budget_id: budget.id })
-            )
-          );
-          fixedData = [...fixedData, ...newFixed];
-        }
-      }
       // ═════════════════════════════════════════════════════════════
 
       // Merge variable expenses, incomes, and fixed expenses into their budgets
@@ -841,6 +827,7 @@ export function MonthlyTrackerProvider({ children }) {
         )
       );
       setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, fixedExpenses: newFixed } : b));
+      setFixedExpenses(newFixed);
       toast.success('Gastos fijos copiados del mes anterior');
     } catch (err) {
       console.error('Error copying fixed expenses:', err);
@@ -856,6 +843,7 @@ export function MonthlyTrackerProvider({ children }) {
         if (fe.id) await fixedExpensesDb.deleteFixedExpense(fe.id, userId);
       }
       setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, fixedExpenses: [] } : b));
+      setFixedExpenses([]);
       toast.success('Gastos fijos limpiados');
     } catch (err) {
       console.error('Error clearing fixed expenses:', err);
@@ -947,6 +935,19 @@ export function MonthlyTrackerProvider({ children }) {
         usd_fee: last.usd_fee || '0', usd_cop: last.usd_cop || '0',
       });
 
+      const newFixed = await Promise.all(
+        (last.fixedExpenses || []).map((fe, idx) =>
+          fixedExpensesDb.createFixedExpense(userId, {
+            label: fe.label,
+            amount: fe.amount,
+            sort_order: idx,
+            budget_id: createdBudget.id,
+            status: 0,
+            payment_date: fe.payment_date || fe.date || '',
+          })
+        )
+      );
+
       const newVariables = await Promise.all(
         (last.gastosVar || []).map((g, idx) =>
           variableExpensesDb.createVariableExpense(userId, createdBudget.id, { label: g.label, amount: g.amount, sort_order: idx })
@@ -976,6 +977,7 @@ export function MonthlyTrackerProvider({ children }) {
 
       const budgetWithIncomes = {
         ...createdBudget,
+        fixedExpenses: newFixed,
         gastosVar: newVariables,
         withdrawals: [],
         incomes: finalIncomes,
