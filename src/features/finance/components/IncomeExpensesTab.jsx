@@ -677,12 +677,13 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
               <div className="flex items-center gap-1.5 sm:gap-2 px-1 mb-1 -mt-2">
                 <div className="w-4 shrink-0" />
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-28 shrink-0 text-center">Fecha</span>
                 {useWise || useUsd ? (
                   <>
                     <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">Moneda</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Monto</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[60px] shrink-0 text-right">Comisión</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Tasa</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 shrink-0 text-right">Monto</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[70px] shrink-0 text-right">Comisión</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[70px] shrink-0 text-right">Tasa</span>
                   </>
                 ) : (
                   <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 text-right">Valor</span>
@@ -693,6 +694,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
               <div className="flex items-center gap-1.5 sm:gap-2 px-1 mb-1 -mt-2">
                 <div className="w-4 shrink-0" />
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-28 text-center shrink-0">Fecha</span>
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 text-right">Valor</span>
               </div>
             )}
