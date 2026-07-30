@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Wallet, Plus, Trash2, Pencil, Check, ChevronUp, ChevronDown,
+  Wallet, Plus, Trash2, Pencil, Check, X, GripVertical,
   Database, DollarSign, TrendingDown, RotateCcw, Eraser, AlertTriangle,
 } from 'lucide-react';
 import { useLanguage } from '../../../context/LanguageContext';
@@ -13,8 +13,35 @@ import StatCard from '../../../shared/components/StatCard';
 import CalendarInput from '../../../shared/components/CalendarInput';
 import { toast } from 'sonner';
 
-const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, confirmText, isDanger }) => {
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, itemsPreview, confirmText, isDanger, selectable }) => {
+  const [checked, setChecked] = useState({});
+  const allChecked = itemsPreview && itemsPreview.length > 0 && Object.keys(checked).length === itemsPreview.length && itemsPreview.every(item => checked[item.id]);
+  const noneChecked = itemsPreview && itemsPreview.length > 0 && Object.keys(checked).length === 0;
+
+  useEffect(() => {
+    if (isOpen && itemsPreview) {
+      const init = {};
+      for (const item of itemsPreview) init[item.id] = true;
+      setChecked(init);
+    }
+  }, [isOpen, itemsPreview]);
+
   if (!isOpen) return null;
+
+  const toggleAll = () => {
+    if (allChecked) {
+      setChecked({});
+    } else {
+      const all = {};
+      for (const item of itemsPreview) all[item.id] = true;
+      setChecked(all);
+    }
+  };
+
+  const toggleItem = (id) => {
+    setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
     <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
       <div className="bg-[var(--bg-card-solid)] border border-[var(--border-card)] rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 animate-scale-in">
@@ -22,11 +49,55 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, confirmT
           <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${isDanger ? 'bg-red-500/10 text-red-500' : 'bg-acid/10 text-acid'}`}>
             {isDanger ? <AlertTriangle size={22} /> : <RotateCcw size={22} />}
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className="font-bold text-base text-[var(--text-primary)]">{title}</h3>
             <p className="text-xs text-[var(--text-muted)] mt-1 leading-relaxed">{description}</p>
           </div>
         </div>
+
+        {itemsPreview !== undefined && (
+          <div className="bg-[var(--bg-input)] border border-[var(--border-card)] rounded-xl p-3 max-h-48 overflow-y-auto space-y-1">
+            {itemsPreview.length > 0 ? (
+              <>
+                {selectable && (
+                  <label className="flex items-center gap-2 py-1 border-b border-[var(--border-card)]/50 mb-1 cursor-pointer">
+                    <input type="checkbox" checked={allChecked}
+                      onChange={toggleAll}
+                      className={`w-3.5 h-3.5 rounded-full appearance-none cursor-pointer border-2 transition-all duration-150 ${
+                        isDanger
+                          ? allChecked ? 'bg-red-500 border-red-500' : 'bg-transparent border-red-500/50'
+                          : allChecked ? 'bg-acid border-acid' : 'bg-transparent border-acid/50'
+                      }`} />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)] select-none">All</span>
+                  </label>
+                )}
+                {itemsPreview.map((item) => (
+                  <label key={item.id} className="flex items-center gap-2 py-0.5 cursor-pointer group">
+                    {selectable && (
+                      <input type="checkbox" checked={checked[item.id] ?? true} onChange={() => toggleItem(item.id)}
+                        className={`w-3.5 h-3.5 rounded-full appearance-none cursor-pointer shrink-0 border-2 transition-all duration-150 ${
+                          isDanger
+                            ? checked[item.id] ? 'bg-red-500 border-red-500' : 'bg-transparent border-red-500/40'
+                            : checked[item.id] ? 'bg-acid border-acid' : 'bg-transparent border-acid/40'
+                        }`} />
+                    )}
+                    <span className={`text-xs font-medium truncate mr-2 flex-1 ${selectable ? 'text-[var(--text-primary)] group-hover:text-white transition-colors' : 'text-[var(--text-primary)]'}`}>
+                      {item.label || item.name || 'Sin concepto'}
+                    </span>
+                    <span className="text-[var(--text-muted)] text-xs font-semibold shrink-0">
+                      {item.amountDisplay || `$${Number(item.amount || 0).toLocaleString('es-CO')}`}
+                    </span>
+                  </label>
+                ))}
+              </>
+            ) : (
+              <span className="text-xs text-[var(--text-muted)] italic block text-center py-1">
+                {isDanger ? 'No hay elementos para limpiar.' : 'No hay elementos en el mes anterior para copiar.'}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border-card)]/50">
           <button
             onClick={onClose}
@@ -37,16 +108,18 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description, confirmT
           </button>
           <button
             onClick={() => {
-              onConfirm();
+              const selected = itemsPreview ? itemsPreview.filter((item) => checked[item.id]).map((item) => item.id) : [];
+              onConfirm(selected);
               onClose();
             }}
             type="button"
-            className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
               isDanger
                 ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20'
                 : 'bg-acid text-black font-bold hover:bg-acid/90 shadow-lg shadow-acid/20'
             }`}
           >
+            {isDanger ? <X size={12} /> : <Check size={12} />}
             {confirmText}
           </button>
         </div>
@@ -155,20 +228,58 @@ const ListHeader = ({ showDate = false }) => (
   </div>
 );
 
-const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, onMove, isFirst, isLast, showDate = false }) => {
+const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, onMove, index, showDate = false }) => {
   const displayLabel = item.name !== undefined ? item.name : (item.label || '');
+  const rawDate = item.date || item.payment_date || (item.created_at ? String(item.created_at).slice(0, 10) : '');
+  const dateFieldName = item.payment_date !== undefined ? 'payment_date' : 'date';
   const fmtAmount = (val) => {
     const n = typeof val === 'string' ? parseFloat(val.replace(/\./g, '')) : (parseFloat(val) || 0);
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
   };
+
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDragStart = useCallback((e) => {
+    e.dataTransfer.setData('text/plain', String(index));
+    e.dataTransfer.effectAllowed = 'move';
+    e.currentTarget.style.opacity = '0.4';
+  }, [index]);
+
+  const handleDragEnd = useCallback((e) => {
+    e.currentTarget.style.opacity = '1';
+    setDragOver(false);
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    if (fromIndex !== index) onMove(fromIndex, index);
+  }, [index, onMove]);
+
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
+    <div
+      draggable={isEditing && !!onMove}
+      onDragStart={isEditing && onMove ? handleDragStart : undefined}
+      onDragEnd={isEditing && onMove ? handleDragEnd : undefined}
+      onDragOver={isEditing && onMove ? handleDragOver : undefined}
+      onDragLeave={isEditing && onMove ? handleDragLeave : undefined}
+      onDrop={isEditing && onMove ? handleDrop : undefined}
+      className={`flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0 transition-colors ${dragOver ? 'bg-acid/10 border-acid/30' : ''} ${isEditing && onMove ? 'cursor-grab active:cursor-grabbing' : ''}`}
+    >
       {isEditing && onMove && (
-        <div className="w-4 flex flex-col items-center justify-center shrink-0 -my-1">
-          <button onClick={(e) => { e.stopPropagation(); onMove('up'); }} disabled={isFirst}
-            className="text-text-muted/50 hover:text-white disabled:opacity-20 transition-colors leading-none"><ChevronUp size={13} /></button>
-          <button onClick={(e) => { e.stopPropagation(); onMove('down'); }} disabled={isLast}
-            className="text-text-muted/50 hover:text-white disabled:opacity-20 transition-colors leading-none"><ChevronDown size={13} /></button>
+        <div className="w-4 flex items-center justify-center shrink-0 text-[var(--text-muted)]/40 hover:text-[var(--text-muted)] transition-colors">
+          <GripVertical size={13} />
         </div>
       )}
       <StatusBulb status={item.status || 0} onClick={onStatusToggle} readOnly={!isEditing} />
@@ -179,8 +290,8 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
             placeholder="Concepto" className="min-w-0 flex-1 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
           {showDate && (
             <CalendarInput
-              value={item.date || ''}
-              onChange={(val) => onChange(item.id, 'date', val)}
+              value={rawDate}
+              onChange={(val) => onChange(item.id, dateFieldName, val)}
               placeholder="Fecha"
             />
           )}
@@ -199,7 +310,7 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
           <span className="text-[11px] text-[var(--text-primary)] font-medium truncate flex-1">{displayLabel}</span>
           {showDate && (
             <span className="text-[10px] text-[var(--text-muted)] w-28 text-center shrink-0">
-              {item.date || ''}
+              {rawDate}
             </span>
           )}
           <span className="text-[11px] font-bold text-[var(--text-primary)] w-24 text-right shrink-0">{fmtAmount(item.amount)}</span>
@@ -225,15 +336,19 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
     copyVariableExpensesFromPreviousMonth, clearVariableExpenses,
     moveIncome,
     setCurrentIndex, MONTHS_LONG,
+    budgets: contextBudgets,
   } = useMonthlyTracker();
+
+  const activeBudgets = contextBudgets || allBudgets || [];
 
   // Selected budget based on the shared picker (independent of currentBudget)
   const selectedBudget = useMemo(() => {
     if (!pickerDate) return currentBudget;
     const y = pickerDate.getFullYear();
     const m = pickerDate.getMonth();
-    return allBudgets?.find(b => Number(b.year) === y && Number(b.month) === m) || null;
-  }, [allBudgets, pickerDate, currentBudget]);
+    return activeBudgets.find(b => Number(b.year) === y && Number(b.month) === m) || null;
+  }, [activeBudgets, pickerDate, currentBudget]);
+
   const { user } = useUser();
   const useWise = user.useWise !== false;
   const useUsd = user.useUsd === true;
@@ -250,69 +365,141 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
 
   const closeConfirmModal = () => setConfirmModal((prev) => ({ ...prev, isOpen: false }));
 
+  // Previous month budget calculation for modal preview
+  const prevBudget = useMemo(() => {
+    if (!selectedBudget || !activeBudgets.length) return null;
+    const curMonth = Number(selectedBudget.month);
+    const curYear = Number(selectedBudget.year);
+    let prevMonth = curMonth - 1;
+    let prevYear = curYear;
+    if (prevMonth < 0) { prevMonth = 11; prevYear = curYear - 1; }
+    return activeBudgets.find((b) => Number(b.year) === prevYear && Number(b.month) === prevMonth) || null;
+  }, [selectedBudget, activeBudgets]);
+
   const promptCopyIncomes = () => {
+    const prevItems = prevBudget?.incomes || [];
+    const preview = prevItems.map((inc) => ({
+      id: inc.id,
+      label: inc.label,
+      amountDisplay: inc.currency === 'COP'
+        ? `$${Number(inc.amount || 0).toLocaleString('es-CO')}`
+        : `${inc.amount} ${inc.currency}`,
+    }));
+    const prevMonthName = prevBudget ? MONTHS_LONG[prevBudget.month] : 'mes anterior';
+    const curMonthName = selectedBudget ? MONTHS_LONG[selectedBudget.month] : 'este mes';
+
     setConfirmModal({
       isOpen: true,
       title: 'Copiar Ingresos Fijos',
-      description: '¿Deseas copiar los ingresos fijos del mes anterior? Los datos actuales de ingresos fijos de este mes serán reemplazados por los del mes anterior.',
-      confirmText: 'Sí, copiar ingresos',
+      description: `Selecciona los ingresos a copiar de ${prevMonthName} a ${curMonthName} en estado neutro:`,
+      itemsPreview: preview,
+      confirmText: 'Copiar seleccionados',
       isDanger: false,
-      onConfirm: copyIncomesFromPreviousMonth,
+      selectable: true,
+      onConfirm: (ids) => copyIncomesFromPreviousMonth(ids),
     });
   };
 
   const promptClearIncomes = () => {
+    const items = selectedBudget?.incomes || [];
+    const preview = items.map((inc) => ({
+      id: inc.id,
+      label: inc.label,
+      amountDisplay: inc.currency === 'COP'
+        ? `$${Number(inc.amount || 0).toLocaleString('es-CO')}`
+        : `${inc.amount} ${inc.currency}`,
+    }));
     setConfirmModal({
       isOpen: true,
       title: 'Limpiar Ingresos Fijos',
-      description: '¿Deseas borrar todos los ingresos fijos registrados en el mes actual?',
-      confirmText: 'Sí, limpiar ingresos',
+      description: 'Selecciona los ingresos a limpiar del mes actual:',
+      itemsPreview: preview,
+      confirmText: 'Limpiar seleccionados',
       isDanger: true,
-      onConfirm: clearIncomes,
+      selectable: true,
+      onConfirm: (ids) => clearIncomes(ids),
     });
   };
 
   const promptCopyFixed = () => {
+    const prevItems = prevBudget?.fixedExpenses || [];
+    const preview = prevItems.map((fe) => ({
+      id: fe.id,
+      label: fe.label,
+      amountDisplay: `$${Number(fe.amount || 0).toLocaleString('es-CO')}`,
+    }));
+    const prevMonthName = prevBudget ? MONTHS_LONG[prevBudget.month] : 'mes anterior';
+    const curMonthName = selectedBudget ? MONTHS_LONG[selectedBudget.month] : 'este mes';
+
     setConfirmModal({
       isOpen: true,
       title: 'Copiar Gastos Fijos',
-      description: '¿Deseas copiar los gastos fijos del mes anterior? Los datos actuales de gastos fijos de este mes serán reemplazados por los del mes anterior.',
-      confirmText: 'Sí, copiar gastos fijos',
+      description: `Selecciona los gastos fijos a copiar de ${prevMonthName} a ${curMonthName} en estado neutro:`,
+      itemsPreview: preview,
+      confirmText: 'Copiar seleccionados',
       isDanger: false,
-      onConfirm: copyFixedExpensesFromPreviousMonth,
+      selectable: true,
+      onConfirm: (ids) => copyFixedExpensesFromPreviousMonth(ids),
     });
   };
 
   const promptClearFixed = () => {
+    const items = selectedBudget?.fixedExpenses || [];
+    const preview = items.map((fe) => ({
+      id: fe.id,
+      label: fe.label,
+      amountDisplay: `$${Number(fe.amount || 0).toLocaleString('es-CO')}`,
+    }));
     setConfirmModal({
       isOpen: true,
       title: 'Limpiar Gastos Fijos',
-      description: '¿Deseas borrar todos los gastos fijos registrados en el mes actual?',
-      confirmText: 'Sí, limpiar gastos fijos',
+      description: 'Selecciona los gastos fijos a limpiar del mes actual:',
+      itemsPreview: preview,
+      confirmText: 'Limpiar seleccionados',
       isDanger: true,
-      onConfirm: clearFixedExpenses,
+      selectable: true,
+      onConfirm: (ids) => clearFixedExpenses(ids),
     });
   };
 
   const promptCopyVariables = () => {
+    const prevItems = prevBudget?.gastosVar || [];
+    const preview = prevItems.map((g) => ({
+      id: g.id,
+      label: g.label,
+      amountDisplay: `$${Number(g.amount || 0).toLocaleString('es-CO')}`,
+    }));
+    const prevMonthName = prevBudget ? MONTHS_LONG[prevBudget.month] : 'mes anterior';
+    const curMonthName = selectedBudget ? MONTHS_LONG[selectedBudget.month] : 'este mes';
+
     setConfirmModal({
       isOpen: true,
       title: 'Copiar Gastos Variables',
-      description: '¿Deseas copiar los gastos variables del mes anterior? Los datos actuales de gastos variables de este mes serán reemplazados por los del mes anterior.',
-      confirmText: 'Sí, copiar gastos variables',
+      description: `Selecciona los gastos variables a copiar de ${prevMonthName} a ${curMonthName} en estado neutro:`,
+      itemsPreview: preview,
+      confirmText: 'Copiar seleccionados',
       isDanger: false,
-      onConfirm: copyVariableExpensesFromPreviousMonth,
+      selectable: true,
+      onConfirm: (ids) => copyVariableExpensesFromPreviousMonth(ids),
     });
   };
 
   const promptClearVariables = () => {
+    const items = selectedBudget?.gastosVar || [];
+    const preview = items.map((g) => ({
+      id: g.id,
+      label: g.label,
+      amountDisplay: `$${Number(g.amount || 0).toLocaleString('es-CO')}`,
+    }));
     setConfirmModal({
       isOpen: true,
       title: 'Limpiar Gastos Variables',
-      description: '¿Deseas borrar todos los gastos variables registrados en el mes actual?',
-      confirmText: 'Sí, limpiar gastos variables',
+      description: 'Selecciona los gastos variables a limpiar del mes actual:',
+      itemsPreview: preview,
+      confirmText: 'Limpiar seleccionados',
       isDanger: true,
-      onConfirm: clearVariableExpenses,
+      selectable: true,
+      onConfirm: (ids) => clearVariableExpenses(ids),
     });
   };
 
@@ -475,7 +662,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
   }, [selectedBudget]);
 
   const displayVarTotal = (selectedBudget?.gastosVar || []).reduce((s, v) => s + (parseFloat(v.amount) || 0), 0);
-  const fixedTotalAll = fixedExpenses.reduce((s, f) => s + (parseFloat(f.amount) || 0), 0);
+  const fixedTotalAll = (selectedBudget?.fixedExpenses || []).reduce((s, f) => s + (parseFloat(f.amount) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -704,11 +891,13 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
             onAdd={addFixedExpense}
             onCopyPrev={promptCopyFixed}
             onClear={promptClearFixed}
-            isComplete={fixedExpenses?.length > 0 && fixedExpenses.every(item => item.status === 1)}
+            isComplete={(selectedBudget?.fixedExpenses || []).length > 0 && (selectedBudget?.fixedExpenses || []).every(item => item.status === 1)}
           >
             <ListHeader showDate={true} />
             <div className="space-y-0">
-              {fixedExpenses.map((item, idx) => (
+              {(selectedBudget?.fixedExpenses || []).map((item, idx) => {
+                const fixedItems = selectedBudget?.fixedExpenses || [];
+                return (
                 <TransactionRow
                   key={item.id}
                   item={item}
@@ -719,10 +908,9 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   canDelete={true}
                   onMove={(dir) => moveFixedExpense(item.id, dir)}
                   isFirst={idx === 0}
-                  isLast={idx === fixedExpenses.length - 1}
+                  isLast={idx === fixedItems.length - 1}
                   showDate={true}
-                />
-              ))}
+                />);})}
             </div>
             <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
               <span className="text-xs font-medium text-[var(--text-muted)]">Total Fijos <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>

@@ -11,18 +11,22 @@ import IncomeExpensesTab from './components/IncomeExpensesTab';
 const Finance = () => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('resumen');
-  const { loading, currentBudget, budgets, setCurrentIndex, MONTHS_LONG } = useMonthlyTracker();
+  const { loading, currentBudget, budgets, setCurrentIndex, ensureBudgetForMonth, MONTHS_LONG } = useMonthlyTracker();
 
   const [pickerDate, setPickerDate] = useState(() =>
     currentBudget ? new Date(currentBudget.year, currentBudget.month) : new Date()
   );
 
-  const handleMonthChange = (newDate) => {
+  const handleMonthChange = async (newDate) => {
     setPickerDate(newDate);
     const y = newDate.getFullYear();
     const m = newDate.getMonth();
     const idx = budgets.findIndex(b => Number(b.year) === y && Number(b.month) === m);
-    if (idx >= 0) setCurrentIndex(idx);
+    if (idx >= 0) {
+      setCurrentIndex(idx);
+    } else {
+      await ensureBudgetForMonth(y, m);
+    }
   };
 
   const TABS = [

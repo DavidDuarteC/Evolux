@@ -260,7 +260,7 @@ export default function Dashboard() {
       return { name: s.name, Completadas: done, Pendientes: Math.max(0, st.length - done), color: s.color || CHART_GREEN };
     }), [spaces, categories, tasks]);
 
-  const goalsCompleted = goals.filter(g => g.current >= g.target).length;
+  const goalsCompleted = goals.filter(g => g.target > 0 && g.current >= g.target).length;
 
   const StatPill = ({ label, value, color }) => (
     <div className="flex items-center gap-2.5">
