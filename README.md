@@ -39,20 +39,23 @@ Ejecutar `sql/supabase_schema.sql` en el editor SQL de Supabase para crear tabla
 
 ## Funcionalidades
 
-### Dashboard (Home)
-- **Gastos Anuales** — pagos una vez al año (impuestos, seguros, suscripciones)
-- **Ingresos Fijos** — ingresos mensuales recurrentes (salario, freelance)
-- **Gastos Fijos Mensuales** — gastos fijos cada mes (arriendo, internet)
-- **Gastos Variables Mensuales** — gastos que varían (transporte, mercado)
-- Stat cards con totales y tendencias vs mes anterior
-- Navegación por mes/año, modo edición con toggle de lápiz
-- Status bulb: `0` pendiente (gris), `1` pagado (verde), `2` error (rojo)
-- Totales solo suman items con status `1`
+### Dashboard (Home) — Analítica e Historial Central
+- **Ingresos vs Gastos vs Ahorro** — gráfico de barras multi-columna (3M, 6M, 1A) con desglose de Ingresos, Gastos Fijos, Gastos Variables y Ahorro
+- **Gastos del mes** — gráfico circular (Donut) de gastos fijos y variables (pagados vs pendientes)
+- **Ahorro Acumulado** — gráfico de área con progresión histórica de CDT y Colchón de emergencia
+- **Productividad** — seguimiento de Tareas por Espacio y progreso de Hábitos mensuales
+- **Metas Financieras** — barra de progreso de metas activas
+- **Historial de Meses Registrados** — lista cronológica de presupuestos guardados
 
-### Billetera (Finance)
-- Gestión de cuentas (Principal, Nequi, DaviPlata, etc.)
-- CRUD de cuentas con montos
-- Stat cards: Ingresos Mes, Gastos Fijos, Gastos Variables, Cuentas Actuales
+### Finanzas (Finance)
+Dividido en 2 módulos operacionales:
+1. **Ingresos y Gastos** (`IncomeExpensesTab.jsx`):
+   - **Ingresos Fijos**: conversión Wise EUR/USD → COP o ingreso manual
+   - **Gastos Anuales**: gastos recurrentes anuales
+   - **Gastos Fijos Mensuales & Gastos Variables Mensuales**: edición con ordenación de filas (arriba/abajo)
+   - **Modales de Confirmación**: ventanas emergentes explicativas al ejecutar *"Copiar mes anterior"* o *"Limpiar"* por sección
+2. **Liquidez** (`LiquidityTab.jsx`):
+   - Cuentas de dinero actual, ingresos pendientes y deudas
 
 ### Metas (Goals)
 - Crear metas de ahorro con nombre, monto objetivo y monto inicial
@@ -71,15 +74,9 @@ Ejecutar `sql/supabase_schema.sql` en el editor SQL de Supabase para crear tabla
 - Checklist de subtareas por tarea
 - Fecha límite y categorización
 
-### Análisis (Analytics)
-- Ingresos vs Gastos (últimos 6 meses) — gráfico de barras
-- Distribución de Gastos (fijos vs variables) — gráfico de pie
-- Tendencia de Ahorro — gráfico de líneas
-- Productividad por espacio (% tareas completadas)
-
 ### Perfil (Profile)
 - Nombre, email y plan
-- Selector de color de acento
+- Toggle de integración Wise (EUR/USD)
 - Toggle dark/light mode
 - Configuración general y notificaciones
 
@@ -88,19 +85,19 @@ Ejecutar `sql/supabase_schema.sql` en el editor SQL de Supabase para crear tabla
 ```
 src/
 ├── features/           # Features autónomas
-│   ├── finance/        #   components, context, hooks, services, utils
+│   ├── finance/        #   components (IncomeExpensesTab, LiquidityTab), context, hooks, services
 │   ├── tasks/          #   components, context, hooks, services
 │   ├── goals/          #   components, hooks, services
 │   ├── fitness/        #   components, hooks, services
 │   ├── auth/           #   components, context, hooks, services
-│   ├── analytics/      #   components, hooks
+│   ├── monthlyTracker/ #   context, services
 │   ├── profile/        #   components, hooks
 │   └── dashboard/      #   components, hooks
 ├── shared/             # Código compartido entre features
-│   ├── components/     #   StatCard, DatePicker, ColorPicker, etc.
+│   ├── components/     #   StatCard, DatePicker, CalendarInput, ConfirmDialog, etc.
 │   ├── services/       #   supabase.js (cliente), api.js (Google Apps Script)
 │   └── lib/            #   constants.js, validation.js
-├── context/            # Contextos app-wide (Theme, User, Toast)
+├── context/            # Contextos app-wide (Theme, User)
 ├── layout/             # MainLayout + Sidebar
 ├── hooks/              # useAuth (re-export)
 ├── App.jsx
