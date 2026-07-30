@@ -504,6 +504,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
   };
 
   const [showDepositForm, setShowDepositForm] = useState(false);
+  const [dragOverIncIdx, setDragOverIncIdx] = useState(null);
   const [depositAmount, setDepositAmount] = useState('');
 
   // Income pending edits (local state for instant typing)
@@ -620,18 +621,20 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
     await annualExpensesDb.updateAnnualExpense(id, userId, { status: nextStatus });
   };
 
-  const moveAnnualExpense = async (id, direction) => {
-    const idx = annualExpenses.findIndex((a) => a.id === id);
-    if (idx === -1) return;
-    const swap = direction === 'up' ? idx - 1 : idx + 1;
-    if (swap < 0 || swap >= annualExpenses.length) return;
-    const newOrder = [...annualExpenses];
-    [newOrder[idx], newOrder[swap]] = [newOrder[swap], newOrder[idx]];
-    setAnnualExpenses(newOrder);
-    await Promise.all([
-      annualExpensesDb.updateAnnualExpense(newOrder[idx].id, userId, { sort_order: idx }),
-      annualExpensesDb.updateAnnualExpense(newOrder[swap].id, userId, { sort_order: swap }),
-    ]);
+  const moveAnnualExpense = async (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    const items = annualExpenses;
+    if (!items[fromIndex] || !items[toIndex]) return;
+    const newOrder = [...items];
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    const updated = newOrder.map((item, i) => ({ ...item, sort_order: i }));
+    setAnnualExpenses(updated);
+    await Promise.all(
+      updated.map((item) =>
+        annualExpensesDb.updateAnnualExpense(item.id, userId, { sort_order: item.sort_order })
+      )
+    );
   };
 
   const handleAddDeposit = () => {
@@ -720,9 +723,8 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                 onDelete={(id) => deleteAnnualExpense(id)}
                 onStatusToggle={() => toggleAnnualStatus(item.id)}
                 canDelete={true}
-                onMove={(dir) => moveAnnualExpense(item.id, dir)}
-                isFirst={idx === 0}
-                isLast={idx === annualExpenses.length - 1}
+                onMove={(fromIdx, toIdx) => moveAnnualExpense(fromIdx, toIdx)}
+                index={idx}
                 showDate={true}
               />
             ))}
@@ -758,13 +760,45 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
               </div>
             )}
             <div className="space-y-1">
-              {(selectedBudget?.incomes || []).map((inc) => {
+              {(selectedBudget?.incomes || []).map((inc, idx) => {
                 const local = uiState.fixedIncome ? getInc(inc) : inc;
                 const copPreview = local.currency === 'COP'
                   ? parseFloat(local.amount) || 0
                   : Math.round(((parseFloat(local.amount) || 0) - (parseFloat(local.fee) || 0)) * (parseFloat(local.rate) || 0));
+
+                const editingInc = uiState.fixedIncome;
+
                 return (
-                  <div key={inc.id} className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
+                  <div key={inc.id}
+                    draggable={editingInc}
+                    onDragStart={editingInc ? (e) => {
+                      e.dataTransfer.setData('text/plain', String(idx));
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.currentTarget.style.opacity = '0.4';
+                    } : undefined}
+                    onDragEnd={editingInc ? (e) => {
+                      e.currentTarget.style.opacity = '1';
+                      setDragOverIncIdx(null);
+                    } : undefined}
+                    onDragOver={editingInc ? (e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setDragOverIncIdx(idx);
+                    } : undefined}
+                    onDragLeave={editingInc ? () => setDragOverIncIdx(null) : undefined}
+                    onDrop={editingInc ? (e) => {
+                      e.preventDefault();
+                      setDragOverIncIdx(null);
+                      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                      if (fromIdx !== idx) moveIncome(fromIdx, idx);
+                    } : undefined}
+                    className={`flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0 transition-colors ${dragOverIncIdx === idx ? 'bg-acid/10 border-acid/30' : ''} ${editingInc ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                  >
+                    {editingInc && (
+                      <div className="w-4 flex items-center justify-center shrink-0 text-[var(--text-muted)]/40 hover:text-[var(--text-muted)] transition-colors">
+                        <GripVertical size={13} />
+                      </div>
+                    )}
                     <StatusBulb status={inc.status || 0} onClick={() => toggleIncomeStatus(inc.id)} />
                     {uiState.fixedIncome ? (
                       <>
@@ -906,9 +940,8 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   onDelete={deleteFixedExpense}
                   onStatusToggle={() => toggleFixedExpenseStatus(item.id)}
                   canDelete={true}
-                  onMove={(dir) => moveFixedExpense(item.id, dir)}
-                  isFirst={idx === 0}
-                  isLast={idx === fixedItems.length - 1}
+                  onMove={(fromIdx, toIdx) => moveFixedExpense(fromIdx, toIdx)}
+                  index={idx}
                   showDate={true}
                 />);})}
             </div>
@@ -940,9 +973,8 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   onDelete={deleteVariableExpense}
                   onStatusToggle={() => toggleVariableExpenseStatus(item.id)}
                   canDelete={true}
-                  onMove={(dir) => moveVariableExpense(item.id, dir)}
-                  isFirst={idx === 0}
-                  isLast={idx === varItems.length - 1}
+                  onMove={(fromIdx, toIdx) => moveVariableExpense(fromIdx, toIdx)}
+                  index={idx}
                   showDate={true}
                 />);})}
             </div>
