@@ -29,14 +29,14 @@ export default function Profile() {
         updateName(e.target.value);
     };
 
-    const handleFileUpload = (e) => {
+    const handleFileUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const img = new Image();
-            img.onload = () => {
+            img.onload = async () => {
                 const canvas = document.createElement('canvas');
                 const MAX_WIDTH = 256;
                 const MAX_HEIGHT = 256;
@@ -58,17 +58,41 @@ export default function Profile() {
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
-                
-                // Enable high-quality image scaling
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
-                
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // Use PNG for lossless quality and transparency support
                 const dataUrl = canvas.toDataURL('image/png');
-                updateAvatar(dataUrl);
+
+                // Try Supabase Storage first
+                try {
+                    const { supabase } = await import('../../shared/services/supabase');
+                    const blob = await (await fetch(dataUrl)).blob();
+                    const fileName = `avatar_${user.email || 'user'}_${Date.now()}.png`;
+
+                    const { data, error } = await supabase.storage
+                        .from('avatars')
+                        .upload(fileName, blob, { contentType: 'image/png', upsert: true });
+
+                    if (!error && data?.path) {
+                        const { data: publicUrlData } = supabase.storage
+                            .from('avatars')
+                            .getPublicUrl(data.path);
+                        if (publicUrlData?.publicUrl) {
+                            await updateAvatar(publicUrlData.publicUrl);
+                            setIsEditingAvatar(false);
+                            toast.success('Avatar actualizado');
+                            return;
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Supabase storage not available, falling back to base64:', err);
+                }
+
+                // Fallback to base64 in profile table
+                await updateAvatar(dataUrl);
                 setIsEditingAvatar(false);
+                toast.success('Avatar actualizado');
             };
             img.src = event.target.result;
         };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './context/ThemeContext';
@@ -15,12 +15,10 @@ import Fitness from './features/fitness/Fitness';
 import Tasks from './features/tasks/Tasks';
 import Finance from './features/finance/Finance';
 import Profile from './features/profile/Profile';
-import { useEffect } from 'react';
 
 function AppRoutes() {
   const { isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
-  const [currentTab, setCurrentTab] = useState('home');
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -45,21 +43,17 @@ function AppRoutes() {
     );
   }
 
-  const renderContent = () => {
-    switch (currentTab) {
-      case 'home': return <Dashboard />;
-      case 'wallet': return <Finance />;
-      case 'goals': return <Goals />;
-      case 'fitness': return <Fitness />;
-      case 'tasks': return <Tasks />;
-      case 'profile': return <Profile />;
-      default: return <Dashboard />;
-    }
-  };
-
   return (
-    <MainLayout currentTab={currentTab} onTabChange={setCurrentTab}>
-      {renderContent()}
+    <MainLayout>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/finanzas" element={<Finance />} />
+        <Route path="/metas" element={<Goals />} />
+        <Route path="/habitos" element={<Fitness />} />
+        <Route path="/tareas" element={<Tasks />} />
+        <Route path="/perfil" element={<Profile />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </MainLayout>
   );
 }

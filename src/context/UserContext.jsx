@@ -18,26 +18,18 @@ export function useUser() {
 export function UserProvider({ children }) {
     const { profile, user: authUser, updateProfile } = useAuth();
     
-    const user = profile ? {
-        name: profile.name || authUser?.user_metadata?.name || 'Guest',
+    const fallbackName = authUser?.user_metadata?.name || authUser?.email?.split('@')[0] || 'Usuario';
+
+    const user = {
+        name: profile?.name || fallbackName,
         email: authUser?.email || '',
-        avatar: profile.avatar || null,
-        plan: profile.plan || 'Free',
-        useWise: profile.use_wise !== false,
-        useUsd: profile.use_usd === true,
-        savingsTarget: parseFloat(profile.savings_target) || 5000000,
-        cushionTarget: parseFloat(profile.cushion_target) || 3000000,
-        language: profile.language || 'es',
-    } : {
-        name: 'Guest',
-        email: '',
-        avatar: null,
-        plan: 'Free',
-        useWise: true,
-        useUsd: false,
-        savingsTarget: 5000000,
-        cushionTarget: 3000000,
-        language: 'es',
+        avatar: profile?.avatar || null,
+        plan: profile?.plan || 'Free',
+        useWise: profile?.use_wise !== false,
+        useUsd: profile?.use_usd === true,
+        savingsTarget: parseFloat(profile?.savings_target) || 5000000,
+        cushionTarget: parseFloat(profile?.cushion_target) || 3000000,
+        language: profile?.language || 'es',
     };
 
     const updateName = async (newName) => {

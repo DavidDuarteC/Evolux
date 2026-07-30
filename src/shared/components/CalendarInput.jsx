@@ -8,7 +8,11 @@ const DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const parseDateString = (dateStr) => {
     if (!dateStr) return null;
     if (typeof dateStr !== 'string') return null;
-    const parts = dateStr.split(' ');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+        const [y, m, d] = dateStr.trim().split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+    const parts = dateStr.trim().split(/\s+/);
     if (parts.length !== 2) return null;
     const monthIndex = MONTHS.findIndex(m => m.toUpperCase() === parts[0].toUpperCase());
     if (monthIndex === -1) return null;
@@ -18,7 +22,13 @@ const parseDateString = (dateStr) => {
     return new Date(year, monthIndex, day);
 };
 
-const formatDateForStorage = (date) => {
+const formatDateForStorage = (date, originalStr) => {
+    if (originalStr && /^\d{4}-\d{2}-\d{2}$/.test(originalStr.trim())) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
     return `${MONTHS[date.getMonth()]} ${date.getDate().toString().padStart(2, '0')}`;
 };
 
@@ -56,22 +66,31 @@ export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' 
     }, [value]);
 
     useEffect(() => {
-        if (isOpen && containerRef.current) {
+        if (!isOpen) return;
+
+        const updatePosition = () => {
+            if (!containerRef.current) return;
             const rect = containerRef.current.getBoundingClientRect();
+            const popupWidth = 256;
+            const popupHeight = 270;
             const spaceBelow = window.innerHeight - rect.bottom;
             const spaceAbove = rect.top;
-            if (spaceBelow < 320 && spaceAbove > 320) {
-                setPopupPosition({
-                    top: rect.top + window.scrollY - 8,
-                    left: rect.left + window.scrollX
-                });
-            } else {
-                setPopupPosition({
-                    top: rect.bottom + window.scrollY + 8,
-                    left: rect.left + window.scrollX
-                });
-            }
-        }
+
+            const showAbove = spaceBelow < popupHeight && spaceAbove > popupHeight;
+            const top = showAbove ? (rect.top - popupHeight - 6) : (rect.bottom + 6);
+            const left = Math.max(12, Math.min(rect.right - popupWidth, window.innerWidth - popupWidth - 12));
+
+            setPopupPosition({ top, left });
+        };
+
+        updatePosition();
+        window.addEventListener('scroll', updatePosition, true);
+        window.addEventListener('resize', updatePosition);
+
+        return () => {
+            window.removeEventListener('scroll', updatePosition, true);
+            window.removeEventListener('resize', updatePosition);
+        };
     }, [isOpen]);
 
     const getDaysInMonth = (date) => {
@@ -90,7 +109,7 @@ export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' 
     const handleDayClick = (day) => {
         const newDate = new Date(viewDate);
         newDate.setDate(day);
-        onChange(formatDateForStorage(newDate));
+        onChange(formatDateForStorage(newDate, value));
         setIsOpen(false);
     };
 
@@ -103,7 +122,7 @@ export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' 
     const calendarContent = (
         <div
             ref={popupRef}
-            className="fixed z-[99999] bg-[#121212] border border-white/10 rounded-xl shadow-2xl shadow-black/50 p-4 w-64"
+            className="fixed z-[99999] bg-[var(--bg-card-solid)] border border-[var(--border-card)] rounded-xl shadow-2xl p-4 w-64"
             style={{
                 top: popupPosition.top,
                 left: popupPosition.left
@@ -113,17 +132,17 @@ export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' 
                 <button
                     type="button"
                     onClick={() => navigate(-1)}
-                    className="p-1 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"
+                    className="p-1 hover:bg-[var(--bg-input)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                 >
                     <ChevronLeft size={16} />
                 </button>
-                <span className="text-sm font-bold text-white">
+                <span className="text-sm font-bold text-[var(--text-primary)]">
                     {MONTHS[viewDate.getMonth()]} {viewDate.getFullYear()}
                 </span>
                 <button
                     type="button"
                     onClick={() => navigate(1)}
-                    className="p-1 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"
+                    className="p-1 hover:bg-[var(--bg-input)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                 >
                     <ChevronRight size={16} />
                 </button>
@@ -131,7 +150,7 @@ export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' 
 
             <div className="grid grid-cols-7 gap-1 text-center">
                 {DAYS.map(d => (
-                    <div key={d} className="text-[10px] font-bold text-white/30 py-1">{d}</div>
+                    <div key={d} className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 py-1">{d}</div>
                 ))}
                 {Array.from({ length: firstDay }).map((_, i) => (
                     <div key={`empty-${i}`} />
@@ -150,10 +169,10 @@ export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' 
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => handleDayClick(day)}
                             className={`
-                                h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium transition-all
+                                h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium transition-all cursor-pointer
                                 ${isSelected
                                     ? 'bg-acid text-black font-bold shadow-[0_0_10px_rgba(190,242,100,0.4)]'
-                                    : 'text-white hover:bg-white/10 hover:text-acid'
+                                    : 'text-[var(--text-primary)] hover:bg-[var(--bg-input)] hover:text-acid'
                                 }
                             `}
                         >
@@ -170,10 +189,14 @@ export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' 
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-1 px-2 py-1 bg-white/5 border border-white/10 rounded hover:border-white/20 transition-colors text-center cursor-pointer"
+                className={`w-28 flex items-center justify-center gap-1.5 px-1.5 py-1 bg-[var(--bg-input)] border rounded transition-all cursor-pointer text-center shrink-0 focus:outline-none ${
+                    isOpen
+                        ? 'border-acid text-acid shadow-[0_0_10px_rgba(190,242,100,0.2)]'
+                        : 'border-[var(--border-card)] hover:border-[var(--border-hover)]'
+                }`}
             >
-                <Calendar size={12} className="text-white/40" />
-                <span className="text-[11px] text-white">{value || placeholder}</span>
+                <Calendar size={12} className={isOpen ? 'text-acid' : 'text-white/40'} />
+                <span className="text-[11px] text-[var(--text-primary)] truncate font-medium">{value || placeholder}</span>
             </button>
 
             {isOpen && createPortal(calendarContent, document.body)}

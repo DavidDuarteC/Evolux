@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Wallet, Target, Dumbbell, CheckSquare,
     ChevronLeft, ChevronRight, Sun, Moon, LogOut, X,
@@ -9,32 +10,34 @@ import { useUser } from '../context/UserContext';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function Sidebar({ currentTab, onTabChange, mobileOpen, onMobileClose }) {
+export default function Sidebar({ mobileOpen, onMobileClose }) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const { accentColor, isDark, toggleMode } = useTheme();
     const { user } = useUser();
     const { logout } = useAuth();
     const { t } = useLanguage();
+    const navigate = useNavigate();
+    const location = useLocation();
 
     const MENU_ITEMS = [
-        { id: 'home', label: t('sidebar.dashboard'), icon: LayoutDashboard },
-        { id: 'wallet', label: t('sidebar.finanzas'), icon: Wallet },
-        { id: 'goals', label: t('sidebar.metas'), icon: Target },
-        { id: 'fitness', label: t('sidebar.habitos'), icon: Dumbbell },
-        { id: 'tasks', label: t('sidebar.tareas'), icon: CheckSquare },
+        { path: '/', label: t('sidebar.dashboard'), icon: LayoutDashboard },
+        { path: '/finanzas', label: t('sidebar.finanzas'), icon: Wallet },
+        { path: '/metas', label: t('sidebar.metas'), icon: Target },
+        { path: '/habitos', label: t('sidebar.habitos'), icon: Dumbbell },
+        { path: '/tareas', label: t('sidebar.tareas'), icon: CheckSquare },
     ];
 
     const handleLogout = async () => {
         try {
             await logout();
-            window.location.href = '/auth';
+            navigate('/auth');
         } catch (err) {
             console.error('Error closing session:', err);
         }
     };
 
-    const handleNav = (id) => {
-        onTabChange(id);
+    const handleNav = (path) => {
+        navigate(path);
         onMobileClose?.();
     };
 
@@ -52,7 +55,7 @@ export default function Sidebar({ currentTab, onTabChange, mobileOpen, onMobileC
 
             {/* Profile Section */}
             <button
-                onClick={() => handleNav('profile')}
+                onClick={() => handleNav('/perfil')}
                 className={`flex items-center mb-2 shrink-0 h-[60px] text-left transition-colors hover:bg-white/5 relative group rounded-xl mx-auto
                     ${isCollapsed ? 'justify-center w-10 p-0' : 'w-full px-2'}
                 `}
@@ -86,13 +89,13 @@ export default function Sidebar({ currentTab, onTabChange, mobileOpen, onMobileC
             {/* Navigation */}
             <div className="flex-1 w-full flex flex-col gap-2 overflow-y-auto overflow-x-hidden custom-scrollbar">
                 {MENU_ITEMS.map((item) => {
-                    const isActive = currentTab === item.id;
+                    const isActive = location.pathname === item.path;
                     const Icon = item.icon;
 
                     return (
                         <button
-                            key={item.id}
-                            onClick={() => handleNav(item.id)}
+                            key={item.path}
+                            onClick={() => handleNav(item.path)}
                             className={`flex items-center h-12 rounded-xl transition-all relative group shrink-0
                                 ${isActive ? 'bg-white/5' : 'hover:bg-white/5'}
                                 ${isCollapsed ? 'justify-center w-12 mx-auto' : 'w-full px-2'}

@@ -22,15 +22,8 @@ export const MONTHS_SHORT = [
 ];
 
 export const MONTHS_LONG = [
-  'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
-  'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
-];
-
-export const THEME_COLORS = [
-  { id: 'emerald', name: 'Emerald', value: '#10b981', label: 'Verde' },
-  { id: 'blue',    name: 'Blue',    value: '#3b82f6', label: 'Azul' },
-  { id: 'purple',  name: 'Purple',  value: '#8b5cf6', label: 'Morado' },
-  { id: 'rose',    name: 'Rose',    value: '#f43f5e', label: 'Rosa' },
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
 export const EXPENSE_CATEGORIES_LIMITS = {
