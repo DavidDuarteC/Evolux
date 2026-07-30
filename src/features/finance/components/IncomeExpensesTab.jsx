@@ -238,46 +238,51 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
   };
 
   const [dragOver, setDragOver] = useState(false);
+  const grabActive = isEditing && !!onMove;
 
   const handleDragStart = useCallback((e) => {
+    if (!grabActive) return;
     e.dataTransfer.setData('text/plain', String(index));
     e.dataTransfer.effectAllowed = 'move';
     e.currentTarget.style.opacity = '0.4';
-  }, [index]);
+  }, [index, grabActive]);
 
   const handleDragEnd = useCallback((e) => {
+    if (!grabActive) return;
     e.currentTarget.style.opacity = '1';
     setDragOver(false);
-  }, []);
+  }, [grabActive]);
 
   const handleDragOver = useCallback((e) => {
+    if (!grabActive) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOver(true);
-  }, []);
+  }, [grabActive]);
 
   const handleDragLeave = useCallback(() => {
     setDragOver(false);
   }, []);
 
   const handleDrop = useCallback((e) => {
+    if (!grabActive || !onMove) return;
     e.preventDefault();
     setDragOver(false);
     const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
     if (fromIndex !== index) onMove(fromIndex, index);
-  }, [index, onMove]);
+  }, [index, onMove, grabActive]);
 
   return (
     <div
-      draggable={isEditing && !!onMove}
-      onDragStart={isEditing && onMove ? handleDragStart : undefined}
-      onDragEnd={isEditing && onMove ? handleDragEnd : undefined}
-      onDragOver={isEditing && onMove ? handleDragOver : undefined}
-      onDragLeave={isEditing && onMove ? handleDragLeave : undefined}
-      onDrop={isEditing && onMove ? handleDrop : undefined}
-      className={`flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0 transition-colors ${dragOver ? 'bg-acid/10 border-acid/30' : ''} ${isEditing && onMove ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      draggable={grabActive}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0 transition-colors ${dragOver && grabActive ? 'bg-acid/10 border-acid/30' : ''} ${grabActive ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
-      {isEditing && onMove && (
+      {grabActive && (
         <div className="w-4 flex items-center justify-center shrink-0 text-[var(--text-muted)]/40 hover:text-[var(--text-muted)] transition-colors">
           <GripVertical size={13} />
         </div>
