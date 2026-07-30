@@ -14,9 +14,7 @@ export const getFixedExpenses = async (userId, budgetId = null) => {
   if (budgetId) {
     query = query.eq('budget_id', budgetId);
   }
-  const { data, error } = await query
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
+  const { data, error } = await query;
   if (error) handleError(error);
 
   if (!data) return [];

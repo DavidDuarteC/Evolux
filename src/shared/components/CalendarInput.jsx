@@ -22,14 +22,11 @@ const parseDateString = (dateStr) => {
     return new Date(year, monthIndex, day);
 };
 
-const formatDateForStorage = (date, originalStr) => {
-    if (originalStr && /^\d{4}-\d{2}-\d{2}$/.test(originalStr.trim())) {
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-    }
-    return `${MONTHS[date.getMonth()]} ${date.getDate().toString().padStart(2, '0')}`;
+const formatDateForStorage = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 };
 
 export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' }) {

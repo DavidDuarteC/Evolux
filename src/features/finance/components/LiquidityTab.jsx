@@ -43,9 +43,9 @@ export default function LiquidityTab({ sharedDate }) {
   const toggleEdit = (colKey) => setEditing((prev) => ({ ...prev, [colKey]: !prev[colKey] }));
   const updateLocal = (colKey, id, field, value) => setData((prev) => ({ ...prev, [colKey]: prev[colKey].map((it) => (it.id === id ? { ...it, [field]: value } : it)) }));
   const persistItem = async (colKey, id) => { const item = data[colKey].find((it) => it.id === id); if (!item || !userId) return; try { await updateWalletItem(id, userId, { name: item.name, value: item.value }); } catch (e) { console.error(e); } };
-  const addItem = async (colKey) => { if (!userId) return; try { const created = await addWalletItem(userId, monthKey, colKey, data[colKey].length); setData((prev) => ({ ...prev, [colKey]: [...prev[colKey], created] })); } catch (e) { console.error(e); } };
+  const addItem = async (colKey) => { if (!userId) return; try { const created = await addWalletItem(userId, monthKey, colKey); setData((prev) => ({ ...prev, [colKey]: [...prev[colKey], created] })); } catch (e) { console.error(e); } };
   const removeItem = async (colKey, id) => { if (!userId) return; setData((prev) => ({ ...prev, [colKey]: prev[colKey].filter((it) => it.id !== id) })); try { await deleteWalletItem(id, userId); } catch (e) { console.error(e); } };
-  const moveItem = (colKey, id, direction) => { const arr = [...data[colKey]]; const idx = arr.findIndex((i) => i.id === id); const swap = direction === 'up' ? idx - 1 : idx + 1; if (idx === -1 || swap < 0 || swap >= arr.length) return; [arr[idx], arr[swap]] = [arr[swap], arr[idx]]; setData((prev) => ({ ...prev, [colKey]: arr })); if (userId) arr.forEach((it, i) => updateWalletItem(it.id, userId, { sort_order: i }).catch(() => {})); };
+  const moveItem = (colKey, id, direction) => { const arr = [...data[colKey]]; const idx = arr.findIndex((i) => i.id === id); const swap = direction === 'up' ? idx - 1 : idx + 1; if (idx === -1 || swap < 0 || swap >= arr.length) return; [arr[idx], arr[swap]] = [arr[swap], arr[idx]]; setData((prev) => ({ ...prev, [colKey]: arr })); };
 
   const totals = useMemo(() => {
     const sum = (arr) => arr.reduce((acc, it) => acc + (Number(it.value) || 0), 0);

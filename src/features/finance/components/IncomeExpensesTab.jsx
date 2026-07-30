@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Wallet, Plus, Trash2, Pencil, Check, X, GripVertical,
+  Wallet, Plus, Trash2, Pencil, Check, X, ChevronDown,
   Database, DollarSign, TrendingDown, RotateCcw, Eraser, AlertTriangle,
 } from 'lucide-react';
 import { useLanguage } from '../../../context/LanguageContext';
@@ -228,7 +228,7 @@ const ListHeader = ({ showDate = false }) => (
   </div>
 );
 
-const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, onMove, index, showDate = false }) => {
+const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, showDate = false }) => {
   const displayLabel = item.name !== undefined ? item.name : (item.label || '');
   const rawDate = item.date || item.payment_date || (item.created_at ? String(item.created_at).slice(0, 10) : '');
   const dateFieldName = item.payment_date !== undefined ? 'payment_date' : 'date';
@@ -237,51 +237,8 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
   };
 
-  const [dragOver, setDragOver] = useState(false);
-
-  const handleDragStart = useCallback((e) => {
-    e.dataTransfer.setData('text/plain', String(index));
-    e.dataTransfer.effectAllowed = 'move';
-    e.currentTarget.style.opacity = '0.4';
-  }, [index]);
-
-  const handleDragEnd = useCallback((e) => {
-    e.currentTarget.style.opacity = '1';
-    setDragOver(false);
-  }, []);
-
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setDragOver(false);
-    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-    if (fromIndex !== index) onMove(fromIndex, index);
-  }, [index, onMove]);
-
   return (
-    <div
-      draggable={isEditing && !!onMove}
-      onDragStart={isEditing && onMove ? handleDragStart : undefined}
-      onDragEnd={isEditing && onMove ? handleDragEnd : undefined}
-      onDragOver={isEditing && onMove ? handleDragOver : undefined}
-      onDragLeave={isEditing && onMove ? handleDragLeave : undefined}
-      onDrop={isEditing && onMove ? handleDrop : undefined}
-      className={`flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0 transition-colors ${dragOver ? 'bg-acid/10 border-acid/30' : ''} ${isEditing && onMove ? 'cursor-grab active:cursor-grabbing' : ''}`}
-    >
-      {isEditing && onMove && (
-        <div className="w-4 flex items-center justify-center shrink-0 text-[var(--text-muted)]/40 hover:text-[var(--text-muted)] transition-colors">
-          <GripVertical size={13} />
-        </div>
-      )}
+    <div className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
       <StatusBulb status={item.status || 0} onClick={onStatusToggle} readOnly={!isEditing} />
 
       {isEditing ? (
@@ -328,13 +285,12 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
     deposits, wiseBalance,
     addDeposit, deleteDeposit,
     addIncome, updateIncome, deleteIncome, toggleIncomeStatus,
-    fixedExpenses, updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus, moveFixedExpense,
-    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus, moveVariableExpense,
+    fixedExpenses, updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus,
+    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus,
     copyFromPreviousMonth,
     copyIncomesFromPreviousMonth, clearIncomes,
     copyFixedExpensesFromPreviousMonth, clearFixedExpenses,
     copyVariableExpensesFromPreviousMonth, clearVariableExpenses,
-    moveIncome,
     setCurrentIndex, MONTHS_LONG,
     budgets: contextBudgets,
   } = useMonthlyTracker();
@@ -620,20 +576,6 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
     await annualExpensesDb.updateAnnualExpense(id, userId, { status: nextStatus });
   };
 
-  const moveAnnualExpense = async (id, direction) => {
-    const idx = annualExpenses.findIndex((a) => a.id === id);
-    if (idx === -1) return;
-    const swap = direction === 'up' ? idx - 1 : idx + 1;
-    if (swap < 0 || swap >= annualExpenses.length) return;
-    const newOrder = [...annualExpenses];
-    [newOrder[idx], newOrder[swap]] = [newOrder[swap], newOrder[idx]];
-    setAnnualExpenses(newOrder);
-    await Promise.all([
-      annualExpensesDb.updateAnnualExpense(newOrder[idx].id, userId, { sort_order: idx }),
-      annualExpensesDb.updateAnnualExpense(newOrder[swap].id, userId, { sort_order: swap }),
-    ]);
-  };
-
   const handleAddDeposit = () => {
     const val = parseFloat(depositAmount) || 0;
     if (val <= 0) return;
@@ -711,7 +653,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
             isComplete={annualExpenses.length > 0 && annualExpenses.every(item => item.status === 1)}
           >
             <ListHeader showDate={true} />
-            {annualExpenses.map((item, idx) => (
+            {annualExpenses.map((item) => (
               <TransactionRow
                 key={item.id}
                 item={{ ...item, name: item.label, date: item.payment_date }}
@@ -720,9 +662,6 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                 onDelete={(id) => deleteAnnualExpense(id)}
                 onStatusToggle={() => toggleAnnualStatus(item.id)}
                 canDelete={true}
-                onMove={(dir) => moveAnnualExpense(item.id, dir)}
-                isFirst={idx === 0}
-                isLast={idx === annualExpenses.length - 1}
                 showDate={true}
               />
             ))}
@@ -738,15 +677,16 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
               <div className="flex items-center gap-1.5 sm:gap-2 px-1 mb-1 -mt-2">
                 <div className="w-4 shrink-0" />
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-28 shrink-0 text-center">Fecha</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">Moneda</span>
                 {useWise || useUsd ? (
                   <>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">Moneda</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Monto</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[60px] shrink-0 text-right">Comisión</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-20 shrink-0 text-right">Tasa</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-16 shrink-0 text-right">Monto</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-12 shrink-0 text-right">Fee</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-14 shrink-0 text-right">Tasa</span>
                   </>
                 ) : (
-                  <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 text-right">Valor</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-16 shrink-0 text-right">Valor</span>
                 )}
                 <div className="w-9 shrink-0" />
               </div>
@@ -754,6 +694,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
               <div className="flex items-center gap-1.5 sm:gap-2 px-1 mb-1 -mt-2">
                 <div className="w-4 shrink-0" />
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-28 text-center shrink-0">Fecha</span>
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 text-right">Valor</span>
               </div>
             )}
@@ -763,66 +704,57 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                 const copPreview = local.currency === 'COP'
                   ? parseFloat(local.amount) || 0
                   : Math.round(((parseFloat(local.amount) || 0) - (parseFloat(local.fee) || 0)) * (parseFloat(local.rate) || 0));
+                const incDate = local.date || local.payment_date || (local.created_at ? String(local.created_at).slice(0, 10) : '');
                 return (
                   <div key={inc.id} className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
                     <StatusBulb status={inc.status || 0} onClick={() => toggleIncomeStatus(inc.id)} />
                     {uiState.fixedIncome ? (
                       <>
-                        <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] flex-1" />
-                        <div className="flex gap-0.5 bg-[var(--bg-input)] rounded overflow-hidden shrink-0">
-                          {[
-                            { label: 'COP', value: 'COP' },
-                            ...(useWise ? [{ label: 'EUR', value: 'EUR' }] : []),
-                            ...(useUsd ? [{ label: 'USD', value: 'USD' }] : []),
-                          ].map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => handleCurrencyChange(inc, opt.value)}
-                              className={`px-2 py-1 text-[11px] font-medium transition-colors ${
-                                local.currency === opt.value
-                                  ? 'bg-acid text-black'
-                                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                        <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] flex-1" />
+                        <CalendarInput value={incDate} onChange={(val) => setIncField(inc.id, 'date', val)} placeholder="Fecha" />
+                        <div className="relative shrink-0">
+                          <select
+                            value={local.currency}
+                            onChange={(e) => handleCurrencyChange(inc, e.target.value)}
+                            className="appearance-none bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 pr-6 text-[11px] font-medium text-[var(--text-primary)] focus:outline-none focus:border-acid cursor-pointer"
+                          >
+                            <option value="COP">{'\u{1F1E8}\u{1F1F4}'} COP</option>
+                            {useWise && <option value="EUR">{'\u{1F1EA}\u{1F1FA}'} EUR</option>}
+                            {useUsd && <option value="USD">{'\u{1F1FA}\u{1F1F8}'} USD</option>}
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[var(--text-muted)]">
+                            <ChevronDown size={12} />
+                          </div>
                         </div>
                         <input type="text" inputMode="decimal" value={local.amount} onChange={(e) => {
                           const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                           setIncField(inc.id, 'amount', v);
-                        }} onBlur={() => saveInc(inc.id)} placeholder="0" className="w-20 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                        }} onBlur={() => saveInc(inc.id)} placeholder="0" className="w-16 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                         {local.currency !== 'COP' ? (
                           <>
                             <input type="text" inputMode="decimal" value={local.fee} onChange={(e) => {
                               const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                               setIncField(inc.id, 'fee', v);
-                            }} onBlur={() => saveInc(inc.id)} placeholder="Fee" className="w-[60px] bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                            }} onBlur={() => saveInc(inc.id)} placeholder="Fee" className="w-12 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1 py-1 text-[10px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                             <input type="text" inputMode="decimal" value={local.rate} onChange={(e) => {
                               const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                               setIncField(inc.id, 'rate', v);
-                            }} onBlur={() => saveInc(inc.id)} placeholder="Tasa" className="w-20 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
-                          </>
-                        ) : (useWise || useUsd) ? (
-                          <>
-                            <div className="w-[60px] shrink-0" />
-                            <div className="w-20 shrink-0" />
+                            }} onBlur={() => saveInc(inc.id)} placeholder="Tasa" className="w-14 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1 py-1 text-[10px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                           </>
                         ) : null}
                         <button onClick={() => deleteIncome(inc.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0"><Trash2 size={13} /></button>
                       </>
                     ) : (
-                      <div className="flex-1 flex items-center justify-between min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[11px] text-[var(--text-primary)] font-medium truncate">{local.label}</span>
-                          <span className="text-[10px] text-[var(--text-muted)] shrink-0">{local.currency}</span>
+                      <div className="flex-1 flex items-center min-w-0 gap-2">
+                        <span className="text-[11px] text-[var(--text-primary)] font-medium truncate flex-[2]">
+                          {local.label}
                           {local.currency !== 'COP' && (
-                            <span className="text-[11px] text-[var(--text-muted)]">{local.amount} {local.currency}</span>
+                            <span className="text-[10px] text-[var(--text-muted)] ml-1.5">{local.amount} {local.currency}</span>
                           )}
-                        </div>
-                        <span className="text-[11px] font-medium" style={{ color: local.currency !== 'COP' ? COLORS.savings : 'var(--text-primary)' }}>
-                          {local.currency === 'COP' ? formatCurrency(local.amount) : `≈ ${formatCurrencyDec(copPreview)}`}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-muted)] w-28 text-center shrink-0">{incDate}</span>
+                        <span className="text-[11px] font-bold text-right w-24 shrink-0" style={{ color: local.currency !== 'COP' ? COLORS.savings : 'var(--text-primary)' }}>
+                          {local.currency === 'COP' ? formatCurrency(local.amount) : '\u2248 ' + formatCurrencyDec(copPreview)}
                         </span>
                       </div>
                     )}
@@ -906,9 +838,8 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   onDelete={deleteFixedExpense}
                   onStatusToggle={() => toggleFixedExpenseStatus(item.id)}
                   canDelete={true}
-                  onMove={(dir) => moveFixedExpense(item.id, dir)}
-                  isFirst={idx === 0}
-                  isLast={idx === fixedItems.length - 1}
+                  onMove={(fromIdx, toIdx) => moveFixedExpense(fromIdx, toIdx)}
+                  index={idx}
                   showDate={true}
                 />);})}
             </div>
@@ -940,9 +871,8 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   onDelete={deleteVariableExpense}
                   onStatusToggle={() => toggleVariableExpenseStatus(item.id)}
                   canDelete={true}
-                  onMove={(dir) => moveVariableExpense(item.id, dir)}
-                  isFirst={idx === 0}
-                  isLast={idx === varItems.length - 1}
+                  onMove={(fromIdx, toIdx) => moveVariableExpense(fromIdx, toIdx)}
+                  index={idx}
                   showDate={true}
                 />);})}
             </div>

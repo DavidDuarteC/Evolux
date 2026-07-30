@@ -41,9 +41,8 @@ function createDefaultBudget(year, month) {
     saved: false,
     income_mode: 'wise',
     manual_income_cop: 0,
-    gastosVar: DEFAULT_VARIABLE_EXPENSES.map((g, idx) => ({
+    gastosVar: DEFAULT_VARIABLE_EXPENSES.map((g) => ({
       ...g,
-      sort_order: idx,
     })),
   };
 }
@@ -117,7 +116,6 @@ export function MonthlyTrackerProvider({ children }) {
             variableExpensesDb.createVariableExpense(userId, createdBudget.id, {
               label: g.label,
               amount: g.amount,
-              sort_order: idx,
             })
           )
         );
@@ -128,10 +126,10 @@ export function MonthlyTrackerProvider({ children }) {
         // Create default incomes for the new budget
         const defaultIncomes = await Promise.all([
           incomesDb.createIncome(userId, createdBudget.id, {
-            label: 'Ingreso principal', currency: 'COP', amount: '0', sort_order: 0,
+            label: 'Ingreso principal', currency: 'COP', amount: '0',
           }),
           incomesDb.createIncome(userId, createdBudget.id, {
-            label: 'Wise EUR', currency: 'EUR', amount: '600', fee: '15.28', rate: '3709.55', sort_order: 1,
+            label: 'Wise EUR', currency: 'EUR', amount: '600', fee: '15.28', rate: '3709.55',
           }),
         ]);
         incomesData = [...incomesData, ...defaultIncomes];
@@ -139,7 +137,7 @@ export function MonthlyTrackerProvider({ children }) {
         // Create default fixed expenses for the new budget
         const defaultFixed = await Promise.all(
           DEFAULT_FIXED_EXPENSES.map((item, idx) =>
-            fixedExpensesDb.createFixedExpense(userId, { ...item, sort_order: idx, budget_id: createdBudget.id })
+            fixedExpensesDb.createFixedExpense(userId, { ...item, budget_id: createdBudget.id })
           )
         );
         fixedData = [...(fixedData || []), ...defaultFixed];
@@ -157,7 +155,7 @@ export function MonthlyTrackerProvider({ children }) {
           const manualCop = parseFloat(budget.manual_income_cop) || 0;
           if (manualCop > 0) {
             const inc = await incomesDb.createIncome(userId, budget.id, {
-              label: 'Ingreso manual', currency: 'COP', amount: String(manualCop), sort_order: 0,
+              label: 'Ingreso manual', currency: 'COP', amount: String(manualCop),
             });
             newIncomes.push(inc);
           }
@@ -171,7 +169,6 @@ export function MonthlyTrackerProvider({ children }) {
               label: 'USD', currency: 'USD', amount: String(usdAmt),
               fee: String(parseFloat(budget.usd_fee) || 0),
               rate: String(parseFloat(budget.usd_rate) || 0),
-              sort_order: 1,
             });
             newIncomes.push(inc);
           }
@@ -185,7 +182,6 @@ export function MonthlyTrackerProvider({ children }) {
               label: 'Wise EUR', currency: 'EUR', amount: String(eurSalary),
               fee: String(parseFloat(budget.wise_fee_eur) || 0),
               rate: String(parseFloat(budget.exchange_rate) || 0),
-              sort_order: 2,
             });
             newIncomes.push(inc);
           }
@@ -213,13 +209,13 @@ export function MonthlyTrackerProvider({ children }) {
         ...budget,
         gastosVar: variablesData
           .filter((v) => v.monthly_budget_id === budget.id)
-          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+          .sort((a, b) => ((a.date || a.payment_date || '') > (b.date || b.payment_date || '') ? 1 : -1)),
         incomes: incomesData
           .filter((i) => i.budget_id === budget.id)
-          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+          .sort((a, b) => ((a.date || a.payment_date || '') > (b.date || b.payment_date || '') ? 1 : -1)),
         fixedExpenses: fixedData
           .filter((f) => f.budget_id === budget.id)
-          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+          .sort((a, b) => ((a.payment_date || a.date || '') > (b.payment_date || b.date || '') ? 1 : -1)),
       }));
 
       // Sort by date
@@ -368,7 +364,7 @@ export function MonthlyTrackerProvider({ children }) {
     const budgetId = currentBudget.id;
     try {
       const newItem = await fixedExpensesDb.createFixedExpense(userId, {
-        label: 'Nuevo gasto', amount: 0, sort_order: fixedExpenses.length, budget_id: budgetId,
+        label: 'Nuevo gasto', amount: 0, budget_id: budgetId,
       });
       setFixedExpenses((prev) => [...prev, newItem]);
       setBudgets((prev) => prev.map((b) =>
@@ -377,7 +373,7 @@ export function MonthlyTrackerProvider({ children }) {
     } catch (error) {
       console.error('Error adding fixed expense:', error);
     }
-  }, [userId, currentBudget, fixedExpenses.length]);
+  }, [userId, currentBudget]);
 
   const deleteFixedExpense = useCallback(async (id) => {
     if (!userId) return;
@@ -429,7 +425,7 @@ export function MonthlyTrackerProvider({ children }) {
     if (!userId || !currentBudget) return;
     const budgetId = currentBudget.id;
     try {
-      const newItem = await variableExpensesDb.createVariableExpense(userId, budgetId, { label: 'Nuevo gasto', amount: 0, sort_order: currentBudget.gastosVar?.length || 0 });
+      const newItem = await variableExpensesDb.createVariableExpense(userId, budgetId, { label: 'Nuevo gasto', amount: 0 });
       setBudgets((prev) => prev.map((b) => b.id === budgetId ? { ...b, gastosVar: [...(b.gastosVar || []), newItem] } : b));
     } catch (error) {
       console.error('Error adding variable expense:', error);
@@ -465,79 +461,14 @@ export function MonthlyTrackerProvider({ children }) {
     }
   }, [userId, currentBudget]);
 
-  const moveFixedExpense = useCallback(async (fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return;
-    const items = fixedExpenses;
-    if (!items[fromIndex] || !items[toIndex]) return;
-    const newOrder = [...items];
-    const [moved] = newOrder.splice(fromIndex, 1);
-    newOrder.splice(toIndex, 0, moved);
-    const updated = newOrder.map((item, i) => ({ ...item, sort_order: i }));
 
-    setFixedExpenses(updated);
-    if (currentBudget) {
-      const budgetId = currentBudget.id;
-      setBudgets((prev) => prev.map((b) => (b.id === budgetId ? { ...b, fixedExpenses: updated } : b)));
-    }
-
-    try {
-      await Promise.all(updated.map((item) =>
-        fixedExpensesDb.updateFixedExpense(item.id, userId, { sort_order: item.sort_order })
-      ));
-    } catch (err) {
-      console.error('Error moving fixed expense:', err);
-    }
-  }, [userId, fixedExpenses, currentBudget]);
-
-  const moveVariableExpense = useCallback(async (fromIndex, toIndex) => {
-    if (fromIndex === toIndex || !currentBudget) return;
-    const items = currentBudget.gastosVar || [];
-    if (!items[fromIndex] || !items[toIndex]) return;
-    const newOrder = [...items];
-    const [moved] = newOrder.splice(fromIndex, 1);
-    newOrder.splice(toIndex, 0, moved);
-    const updated = newOrder.map((item, i) => ({ ...item, sort_order: i }));
-
-    const budgetId = currentBudget.id;
-    setBudgets((prev) => prev.map((b) => (b.id === budgetId ? { ...b, gastosVar: updated } : b)));
-
-    try {
-      await Promise.all(updated.map((item) =>
-        variableExpensesDb.updateVariableExpense(item.id, userId, { sort_order: item.sort_order })
-      ));
-    } catch (err) {
-      console.error('Error moving variable expense:', err);
-    }
-  }, [userId, currentBudget]);
-
-  const moveIncome = useCallback(async (fromIndex, toIndex) => {
-    if (fromIndex === toIndex || !currentBudget) return;
-    const items = currentBudget.incomes || [];
-    if (!items[fromIndex] || !items[toIndex]) return;
-    const newOrder = [...items];
-    const [moved] = newOrder.splice(fromIndex, 1);
-    newOrder.splice(toIndex, 0, moved);
-    const updated = newOrder.map((item, i) => ({ ...item, sort_order: i }));
-
-    const budgetId = currentBudget.id;
-    setBudgets((prev) => prev.map((b) => (b.id === budgetId ? { ...b, incomes: updated } : b)));
-
-    try {
-      await Promise.all(updated.map((item) =>
-        incomesDb.updateIncome(item.id, userId, { sort_order: item.sort_order })
-      ));
-    } catch (err) {
-      console.error('Error moving income:', err);
-    }
-  }, [userId, currentBudget]);
 
   // ====== Incomes ======
   const addIncome = useCallback(async (data) => {
     if (!userId || !currentBudget) return;
     const budgetId = currentBudget.id;
-    const sort_order = (currentBudget.incomes || []).length;
     try {
-      const newItem = await incomesDb.createIncome(userId, budgetId, { ...data, sort_order });
+      const newItem = await incomesDb.createIncome(userId, budgetId, { ...data });
       setBudgets((prev) => prev.map((b) =>
         b.id === budgetId ? { ...b, incomes: [...(b.incomes || []), newItem] } : b
       ));
@@ -678,7 +609,6 @@ export function MonthlyTrackerProvider({ children }) {
             fee: inc.fee || '0',
             rate: inc.rate || '0',
             status: 0,
-            sort_order: idx,
           })
         )
       );
@@ -692,9 +622,9 @@ export function MonthlyTrackerProvider({ children }) {
       }
       const prevFixed = prev.fixedExpenses || [];
       const newFixed = await Promise.all(
-        prevFixed.map((fe, idx) =>
+        prevFixed.map((fe) =>
           fixedExpensesDb.createFixedExpense(userId, {
-            label: fe.label, amount: fe.amount, sort_order: idx, budget_id: currentBudget.id,
+            label: fe.label, amount: fe.amount, budget_id: currentBudget.id,
           })
         )
       );
@@ -708,11 +638,10 @@ export function MonthlyTrackerProvider({ children }) {
       }
       const prevVar = prev.gastosVar || [];
       const newVariables = await Promise.all(
-        prevVar.map((g, idx) =>
+        prevVar.map((g) =>
           variableExpensesDb.createVariableExpense(userId, currentBudget.id, {
             label: g.label,
             amount: g.amount,
-            sort_order: idx,
           })
         )
       );
@@ -775,7 +704,6 @@ export function MonthlyTrackerProvider({ children }) {
             fee: inc.fee || '0',
             rate: inc.rate || '0',
             status: 0,
-            sort_order: idx,
           })
         )
       );
@@ -831,11 +759,10 @@ export function MonthlyTrackerProvider({ children }) {
         if (fe.id) await fixedExpensesDb.deleteFixedExpense(fe.id, userId);
       }
       const newFixed = await Promise.all(
-        itemsToCopy.map((fe, idx) =>
+        itemsToCopy.map((fe) =>
           fixedExpensesDb.createFixedExpense(userId, {
             label: fe.label,
             amount: fe.amount,
-            sort_order: idx,
             budget_id: budgetId,
             status: 0,
             payment_date: fe.payment_date || fe.date || '',
@@ -897,11 +824,10 @@ export function MonthlyTrackerProvider({ children }) {
         if (g.id) await variableExpensesDb.deleteVariableExpense(g.id, userId);
       }
       const newVar = await Promise.all(
-        itemsToCopy.map((g, idx) =>
+        itemsToCopy.map((g) =>
           variableExpensesDb.createVariableExpense(userId, budgetId, {
             label: g.label,
             amount: g.amount,
-            sort_order: idx,
             status: 0,
             date: g.date || '',
           })
@@ -968,7 +894,7 @@ export function MonthlyTrackerProvider({ children }) {
       });
 
       const newIncomes = await Promise.all(
-        (last.incomes || []).map((inc, idx) =>
+        (last.incomes || []).map((inc) =>
           incomesDb.createIncome(userId, createdBudget.id, {
             label: inc.label,
             currency: inc.currency,
@@ -976,7 +902,6 @@ export function MonthlyTrackerProvider({ children }) {
             fee: inc.fee || '0',
             rate: inc.rate || '0',
             status: 0,
-            sort_order: idx,
           })
         )
       );
@@ -984,7 +909,7 @@ export function MonthlyTrackerProvider({ children }) {
       // Fallback: create default incomes if previous month had none
       const finalIncomes = newIncomes.length > 0 ? newIncomes : await Promise.all([
         incomesDb.createIncome(userId, createdBudget.id, {
-          label: 'Ingreso principal', currency: 'COP', amount: '0', sort_order: 0,
+          label: 'Ingreso principal', currency: 'COP', amount: '0',
         }),
       ]);
 
@@ -1085,9 +1010,9 @@ export function MonthlyTrackerProvider({ children }) {
     fixedExpenses, deposits, wiseBalance,
     loading, calculations, formatCurrency, formatCurrencyDec, formatEur, formatUsd, MONTHS_LONG, MONTHS_SHORT,
     updateBudgetField,
-    updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus, moveFixedExpense,
-    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus, moveVariableExpense,
-    addIncome, updateIncome, deleteIncome, toggleIncomeStatus, moveIncome,
+    updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus,
+    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus,
+    addIncome, updateIncome, deleteIncome, toggleIncomeStatus,
     addDeposit, updateDeposit, deleteDeposit,
     saveCurrentMonth, createNextMonth, ensureBudgetForMonth, copyFromPreviousMonth,
     copyIncomesFromPreviousMonth, clearIncomes,

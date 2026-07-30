@@ -13,7 +13,7 @@ export const getAnnualExpenses = async (userId) => {
     .from(TABLE)
     .select('*')
     .eq('user_id', userId)
-    .order('sort_order', { ascending: true });
+    ;
   if (error) handleError(error);
   if (!data) return [];
   return Promise.all(data.map((r) => transformSensitiveFields(r, TABLE, 'decrypt')));
