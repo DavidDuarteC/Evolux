@@ -759,6 +759,9 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                       <div className="flex-1 flex items-center min-w-0 gap-2">
                         <span className="text-[11px] text-[var(--text-primary)] font-medium truncate flex-[2]">{local.label}</span>
                         <span className="text-[10px] text-[var(--text-muted)] w-28 text-center shrink-0">{incDate}</span>
+                        {local.currency !== 'COP' ? (
+                          <span className="text-[10px] text-[var(--text-muted)] shrink-0">{local.amount} {local.currency}</span>
+                        ) : null}
                         <span className="text-[11px] font-bold text-right w-24 shrink-0" style={{ color: local.currency !== 'COP' ? COLORS.savings : 'var(--text-primary)' }}>
                           {local.currency === 'COP' ? formatCurrency(local.amount) : `≈ ${formatCurrencyDec(copPreview)}`}
                         </span>
