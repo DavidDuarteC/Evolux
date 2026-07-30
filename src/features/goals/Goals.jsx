@@ -33,6 +33,7 @@ export default function Goals() {
     const [modalTarget, setModalTarget] = useState('');
     const [modalAmount, setModalAmount] = useState('');
     const [modalColor, setModalColor] = useState('#4ade80');
+    const [modalNoLimit, setModalNoLimit] = useState(false);
 
     const loadGoals = useCallback(async () => {
         if (!userId) return;
@@ -84,11 +85,13 @@ export default function Goals() {
             setModalTarget(goal.target.toString());
             setModalAmount(goal.current.toString());
             setModalColor(goal.color);
+            setModalNoLimit(goal.target === 0);
         } else {
             setModalTitle('');
             setModalTarget('');
             setModalAmount('');
             setModalColor('#4ade80');
+            setModalNoLimit(false);
         }
         setIsModalOpen(true);
     };
@@ -99,14 +102,14 @@ export default function Goals() {
     };
 
     const handleSaveGoal = async () => {
-        if (!modalTitle || !modalTarget) {
+        if (!modalTitle) {
             toast.error('Por favor completa los campos requeridos');
             return;
         }
 
-        const targetVal = parseInt(modalTarget.replace(/\D/g, '')) || 0;
+        const targetVal = modalNoLimit ? 0 : (parseInt(modalTarget.replace(/\D/g, '')) || 0);
 
-        if (targetVal <= 0) {
+        if (!modalNoLimit && targetVal <= 0) {
             toast.error('La meta debe ser mayor a 0');
             return;
         }
@@ -293,14 +296,24 @@ export default function Goals() {
 
                                 <div className={editingGoal ? '' : 'grid grid-cols-2 gap-4'}>
                                     <div>
-                                        <label className="text-xs uppercase font-bold text-text-muted mb-1 block">Meta Total</label>
-                                        <input
-                                            type="text"
-                                            value={Number(modalTarget).toLocaleString('es-CO')}
-                                            onChange={(e) => setModalTarget(e.target.value.replace(/\D/g, ''))}
-                                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-acid focus:outline-none text-right font-mono"
-                                            placeholder="$0"
-                                        />
+                                        <label className="text-xs uppercase font-bold text-text-muted mb-1 block">
+                                            Meta Total
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={modalNoLimit ? '' : Number(modalTarget).toLocaleString('es-CO')}
+                                                onChange={(e) => setModalTarget(e.target.value.replace(/\D/g, ''))}
+                                                disabled={modalNoLimit}
+                                                className={`w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-acid focus:outline-none text-right font-mono transition-opacity ${modalNoLimit ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                                placeholder={modalNoLimit ? 'Sin límite' : '$0'}
+                                            />
+                                        </div>
+                                        <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                                            <input type="checkbox" checked={modalNoLimit} onChange={() => setModalNoLimit(!modalNoLimit)}
+                                                className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-acid focus:ring-acid/30 cursor-pointer" />
+                                            <span className="text-[11px] text-text-muted select-none">Sin meta límite</span>
+                                        </label>
                                     </div>
                                     {!editingGoal && (
                                         <div>
@@ -346,7 +359,8 @@ const GoalCard = ({ goal, onEdit, onTransaction, onDelete, onDeleteMovement }) =
     const [noteInput, setNoteInput] = useState('');
     const [showHistory, setShowHistory] = useState(false);
 
-    const progress = Math.min(100, (goal.current / goal.target) * 100);
+    const noLimit = goal.target === 0;
+    const progress = noLimit ? 0 : Math.min(100, (goal.current / goal.target) * 100);
 
     const customStyle = {
         '--goal-color': goal.color,
@@ -397,29 +411,42 @@ const GoalCard = ({ goal, onEdit, onTransaction, onDelete, onDeleteMovement }) =
                     </div>
                     <div>
                         <h3 className="text-xl font-bold text-white leading-tight">{goal.title}</h3>
-                        <p className="text-sm text-text-muted mt-1 font-mono">{formatMoney(goal.target)}</p>
+                        {noLimit ? (
+                            <p className="text-sm text-text-muted/50 mt-1 italic">Sin límite</p>
+                        ) : (
+                            <p className="text-sm text-text-muted mt-1 font-mono">{formatMoney(goal.target)}</p>
+                        )}
                     </div>
                 </div>
 
-                <div className="mt-3 mb-2 h-2.5 w-full bg-white/10 rounded-full relative overflow-hidden">
-                    <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        className="h-full relative overflow-hidden rounded-full"
-                        style={{
-                            background: `linear-gradient(90deg, ${goal.color}55 0%, ${goal.color} 100%)`,
-                            boxShadow: progress > 0 ? `0 0 12px 0 ${goal.color}70` : 'none'
-                        }}
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full -skew-x-12 opacity-50" />
-                    </motion.div>
-                </div>
+                {noLimit ? (
+                    <div className="flex justify-between items-center mb-3 mt-3 px-1">
+                        <span className="text-white font-mono font-bold text-lg">{formatMoney(goal.current)}</span>
+                        <span className="text-xs text-text-muted/50 italic">Acumulado</span>
+                    </div>
+                ) : (
+                    <>
+                        <div className="mt-3 mb-2 h-2.5 w-full bg-white/10 rounded-full relative overflow-hidden">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progress}%` }}
+                                transition={{ duration: 1, ease: "easeOut" }}
+                                className="h-full relative overflow-hidden rounded-full"
+                                style={{
+                                    background: `linear-gradient(90deg, ${goal.color}55 0%, ${goal.color} 100%)`,
+                                    boxShadow: progress > 0 ? `0 0 12px 0 ${goal.color}70` : 'none'
+                                }}
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full -skew-x-12 opacity-50" />
+                            </motion.div>
+                        </div>
 
-                <div className="flex justify-between items-center mb-3 px-1">
-                    <span className="text-white font-mono font-bold text-lg">{formatMoney(goal.current)}</span>
-                    <span className="text-2xl font-bold" style={{ color: goal.color }}>{Math.round(progress)}%</span>
-                </div>
+                        <div className="flex justify-between items-center mb-3 px-1">
+                            <span className="text-white font-mono font-bold text-lg">{formatMoney(goal.current)}</span>
+                            <span className="text-2xl font-bold" style={{ color: goal.color }}>{Math.round(progress)}%</span>
+                        </div>
+                    </>
+                )}
 
                 <div className="flex bg-white/5 rounded-xl p-1 border border-white/5 relative z-20">
                     <button onClick={() => handleAction('subtract')} className="p-2.5 hover:bg-red-500/20 text-text-muted hover:text-red-400 rounded-lg transition-colors">
