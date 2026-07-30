@@ -678,15 +678,15 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                 <div className="w-4 shrink-0" />
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider flex-1">Concepto</span>
                 <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-28 shrink-0 text-center">Fecha</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">Moneda</span>
                 {useWise || useUsd ? (
                   <>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">Moneda</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 shrink-0 text-right">Monto</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[70px] shrink-0 text-right">Comisión</span>
-                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-[70px] shrink-0 text-right">Tasa</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-16 shrink-0 text-right">Monto</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-12 shrink-0 text-right">Fee</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-14 shrink-0 text-right">Tasa</span>
                   </>
                 ) : (
-                  <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-24 text-right">Valor</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wider w-16 shrink-0 text-right">Valor</span>
                 )}
                 <div className="w-9 shrink-0" />
               </div>
@@ -709,20 +709,21 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   <div key={inc.id} className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
                     <StatusBulb status={inc.status || 0} onClick={() => toggleIncomeStatus(inc.id)} />
                     {uiState.fixedIncome ? (
-                      <div className="flex flex-wrap items-center gap-2 w-full">
-                        <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 flex-1 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
+                      <>
+                        <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] flex-1" />
                         <CalendarInput value={incDate} onChange={(val) => setIncField(inc.id, 'date', val)} placeholder="Fecha" />
                         <div className="flex gap-0.5 bg-[var(--bg-input)] rounded overflow-hidden shrink-0">
                           {[
-                            { label: 'COP', value: 'COP' },
-                            ...(useWise ? [{ label: 'EUR', value: 'EUR' }] : []),
-                            ...(useUsd ? [{ label: 'USD', value: 'USD' }] : []),
+                            { label: 'C', value: 'COP', title: 'COP' },
+                            ...(useWise ? [{ label: 'E', value: 'EUR', title: 'EUR' }] : []),
+                            ...(useUsd ? [{ label: 'U', value: 'USD', title: 'USD' }] : []),
                           ].map((opt) => (
                             <button
                               key={opt.value}
                               type="button"
+                              title={opt.title}
                               onClick={() => handleCurrencyChange(inc, opt.value)}
-                              className={`px-2 py-1.5 text-[11px] font-medium transition-colors ${
+                              className={`px-1.5 py-1 text-[10px] font-bold tracking-wider transition-colors ${
                                 local.currency === opt.value
                                   ? 'bg-acid text-black'
                                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
@@ -735,26 +736,21 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                         <input type="text" inputMode="decimal" value={local.amount} onChange={(e) => {
                           const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                           setIncField(inc.id, 'amount', v);
-                        }} onBlur={() => saveInc(inc.id)} placeholder="Monto" className="w-24 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                        }} onBlur={() => saveInc(inc.id)} placeholder="0" className="w-16 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                         {local.currency !== 'COP' ? (
                           <>
                             <input type="text" inputMode="decimal" value={local.fee} onChange={(e) => {
                               const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                               setIncField(inc.id, 'fee', v);
-                            }} onBlur={() => saveInc(inc.id)} placeholder="Comisión" className="w-[70px] bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
+                            }} onBlur={() => saveInc(inc.id)} placeholder="Fee" className="w-12 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1 py-1 text-[10px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                             <input type="text" inputMode="decimal" value={local.rate} onChange={(e) => {
                               const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
                               setIncField(inc.id, 'rate', v);
-                            }} onBlur={() => saveInc(inc.id)} placeholder="Tasa" className="w-[70px] bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-2 py-1.5 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
-                          </>
-                        ) : (useWise || useUsd) ? (
-                          <>
-                            <div className="w-[70px] shrink-0" />
-                            <div className="w-[70px] shrink-0" />
+                            }} onBlur={() => saveInc(inc.id)} placeholder="Tasa" className="w-14 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1 py-1 text-[10px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                           </>
                         ) : null}
                         <button onClick={() => deleteIncome(inc.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0"><Trash2 size={13} /></button>
-                      </div>
+                      </>
                     ) : (
                       <div className="flex-1 flex items-center min-w-0 gap-2">
                         <span className="text-[11px] text-[var(--text-primary)] font-medium truncate flex-[2]">
@@ -765,7 +761,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                         </span>
                         <span className="text-[10px] text-[var(--text-muted)] w-28 text-center shrink-0">{incDate}</span>
                         <span className="text-[11px] font-bold text-right w-24 shrink-0" style={{ color: local.currency !== 'COP' ? COLORS.savings : 'var(--text-primary)' }}>
-                          {local.currency === 'COP' ? formatCurrency(local.amount) : `≈ ${formatCurrencyDec(copPreview)}`}
+                          {local.currency === 'COP' ? formatCurrency(local.amount) : '\u2248 ' + formatCurrencyDec(copPreview)}
                         </span>
                       </div>
                     )}
