@@ -195,6 +195,19 @@ export function MonthlyTrackerProvider({ children }) {
       }
       // ═════════════════════════════════════════════════════════════
 
+      // Fix any orphaned fixedExpenses missing budget_id by binding to their created_at budget
+      for (const f of (fixedData || [])) {
+        if (!f.budget_id && budgetsData.length > 0) {
+          const createdAt = f.created_at ? new Date(f.created_at) : new Date();
+          const targetBudget = budgetsData.find(
+            (b) => b.year === createdAt.getFullYear() && b.month === createdAt.getMonth()
+          ) || budgetsData[0];
+
+          f.budget_id = targetBudget.id;
+          fixedExpensesDb.updateFixedExpense(f.id, userId, { budget_id: targetBudget.id }).catch(() => {});
+        }
+      }
+
       // Merge variable expenses, incomes, and fixed expenses into their budgets
       const budgetsWithData = budgetsData.map((budget) => ({
         ...budget,
