@@ -12,8 +12,7 @@ export const getIncomes = async (budgetId, userId) => {
   let query = supabase
     .from(TABLE)
     .select('*')
-    .eq('user_id', userId)
-    .order('sort_order', { ascending: true });
+    .eq('user_id', userId);
   if (budgetId) {
     query = query.eq('budget_id', budgetId);
   }

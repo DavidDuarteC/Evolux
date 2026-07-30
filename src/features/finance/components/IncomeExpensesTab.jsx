@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Wallet, Plus, Trash2, Pencil, Check, X, GripVertical,
+  Wallet, Plus, Trash2, Pencil, Check, X,
   Database, DollarSign, TrendingDown, RotateCcw, Eraser, AlertTriangle,
 } from 'lucide-react';
 import { useLanguage } from '../../../context/LanguageContext';
@@ -228,7 +228,7 @@ const ListHeader = ({ showDate = false }) => (
   </div>
 );
 
-const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, onMove, index, showDate = false }) => {
+const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, showDate = false }) => {
   const displayLabel = item.name !== undefined ? item.name : (item.label || '');
   const rawDate = item.date || item.payment_date || (item.created_at ? String(item.created_at).slice(0, 10) : '');
   const dateFieldName = item.payment_date !== undefined ? 'payment_date' : 'date';
@@ -237,56 +237,8 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
   };
 
-  const [dragOver, setDragOver] = useState(false);
-  const grabActive = isEditing && !!onMove;
-
-  const handleDragStart = useCallback((e) => {
-    if (!grabActive) return;
-    e.dataTransfer.setData('text/plain', String(index));
-    e.dataTransfer.effectAllowed = 'move';
-    e.currentTarget.style.opacity = '0.4';
-  }, [index, grabActive]);
-
-  const handleDragEnd = useCallback((e) => {
-    if (!grabActive) return;
-    e.currentTarget.style.opacity = '1';
-    setDragOver(false);
-  }, [grabActive]);
-
-  const handleDragOver = useCallback((e) => {
-    if (!grabActive) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOver(true);
-  }, [grabActive]);
-
-  const handleDragLeave = useCallback(() => {
-    setDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e) => {
-    if (!grabActive || !onMove) return;
-    e.preventDefault();
-    setDragOver(false);
-    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-    if (fromIndex !== index) onMove(fromIndex, index);
-  }, [index, onMove, grabActive]);
-
   return (
-    <div
-      draggable={grabActive}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      className={`flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0 transition-colors ${dragOver && grabActive ? 'bg-acid/10 border-acid/30' : ''} ${grabActive ? 'cursor-grab active:cursor-grabbing' : ''}`}
-    >
-      {grabActive && (
-        <div className="w-4 flex items-center justify-center shrink-0 text-[var(--text-muted)]/40 hover:text-[var(--text-muted)] transition-colors">
-          <GripVertical size={13} />
-        </div>
-      )}
+    <div className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
       <StatusBulb status={item.status || 0} onClick={onStatusToggle} readOnly={!isEditing} />
 
       {isEditing ? (
@@ -333,13 +285,12 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
     deposits, wiseBalance,
     addDeposit, deleteDeposit,
     addIncome, updateIncome, deleteIncome, toggleIncomeStatus,
-    fixedExpenses, updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus, moveFixedExpense,
-    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus, moveVariableExpense,
+    fixedExpenses, updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus,
+    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus,
     copyFromPreviousMonth,
     copyIncomesFromPreviousMonth, clearIncomes,
     copyFixedExpensesFromPreviousMonth, clearFixedExpenses,
     copyVariableExpensesFromPreviousMonth, clearVariableExpenses,
-    moveIncome,
     setCurrentIndex, MONTHS_LONG,
     budgets: contextBudgets,
   } = useMonthlyTracker();
@@ -509,7 +460,6 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
   };
 
   const [showDepositForm, setShowDepositForm] = useState(false);
-  const [dragOverIncIdx, setDragOverIncIdx] = useState(null);
   const [depositAmount, setDepositAmount] = useState('');
 
   // Income pending edits (local state for instant typing)
@@ -626,22 +576,6 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
     await annualExpensesDb.updateAnnualExpense(id, userId, { status: nextStatus });
   };
 
-  const moveAnnualExpense = async (fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return;
-    const items = annualExpenses;
-    if (!items[fromIndex] || !items[toIndex]) return;
-    const newOrder = [...items];
-    const [moved] = newOrder.splice(fromIndex, 1);
-    newOrder.splice(toIndex, 0, moved);
-    const updated = newOrder.map((item, i) => ({ ...item, sort_order: i }));
-    setAnnualExpenses(updated);
-    await Promise.all(
-      updated.map((item) =>
-        annualExpensesDb.updateAnnualExpense(item.id, userId, { sort_order: item.sort_order })
-      )
-    );
-  };
-
   const handleAddDeposit = () => {
     const val = parseFloat(depositAmount) || 0;
     if (val <= 0) return;
@@ -719,7 +653,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
             isComplete={annualExpenses.length > 0 && annualExpenses.every(item => item.status === 1)}
           >
             <ListHeader showDate={true} />
-            {annualExpenses.map((item, idx) => (
+            {annualExpenses.map((item) => (
               <TransactionRow
                 key={item.id}
                 item={{ ...item, name: item.label, date: item.payment_date }}
@@ -728,8 +662,6 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                 onDelete={(id) => deleteAnnualExpense(id)}
                 onStatusToggle={() => toggleAnnualStatus(item.id)}
                 canDelete={true}
-                onMove={(fromIdx, toIdx) => moveAnnualExpense(fromIdx, toIdx)}
-                index={idx}
                 showDate={true}
               />
             ))}
@@ -765,49 +697,19 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
               </div>
             )}
             <div className="space-y-1">
-              {(selectedBudget?.incomes || []).map((inc, idx) => {
+              {(selectedBudget?.incomes || []).map((inc) => {
                 const local = uiState.fixedIncome ? getInc(inc) : inc;
                 const copPreview = local.currency === 'COP'
                   ? parseFloat(local.amount) || 0
                   : Math.round(((parseFloat(local.amount) || 0) - (parseFloat(local.fee) || 0)) * (parseFloat(local.rate) || 0));
-
-                const editingInc = uiState.fixedIncome;
-
+                const incDate = local.date || local.payment_date || (local.created_at ? String(local.created_at).slice(0, 10) : '');
                 return (
-                  <div key={inc.id}
-                    draggable={editingInc}
-                    onDragStart={editingInc ? (e) => {
-                      e.dataTransfer.setData('text/plain', String(idx));
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.currentTarget.style.opacity = '0.4';
-                    } : undefined}
-                    onDragEnd={editingInc ? (e) => {
-                      e.currentTarget.style.opacity = '1';
-                      setDragOverIncIdx(null);
-                    } : undefined}
-                    onDragOver={editingInc ? (e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = 'move';
-                      setDragOverIncIdx(idx);
-                    } : undefined}
-                    onDragLeave={editingInc ? () => setDragOverIncIdx(null) : undefined}
-                    onDrop={editingInc ? (e) => {
-                      e.preventDefault();
-                      setDragOverIncIdx(null);
-                      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                      if (fromIdx !== idx) moveIncome(fromIdx, idx);
-                    } : undefined}
-                    className={`flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0 transition-colors ${dragOverIncIdx === idx ? 'bg-acid/10 border-acid/30' : ''} ${editingInc ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                  >
-                    {editingInc && (
-                      <div className="w-4 flex items-center justify-center shrink-0 text-[var(--text-muted)]/40 hover:text-[var(--text-muted)] transition-colors">
-                        <GripVertical size={13} />
-                      </div>
-                    )}
+                  <div key={inc.id} className="flex items-center gap-1.5 sm:gap-2 py-2 border-b border-[var(--border-card)] last:border-b-0">
                     <StatusBulb status={inc.status || 0} onClick={() => toggleIncomeStatus(inc.id)} />
                     {uiState.fixedIncome ? (
                       <>
                         <input type="text" value={local.label} onChange={(e) => setIncField(inc.id, 'label', e.target.value)} onBlur={() => saveInc(inc.id)} placeholder="Concepto" className="min-w-0 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] flex-1" />
+                        <CalendarInput value={incDate} onChange={(val) => setIncField(inc.id, 'date', val)} placeholder="Fecha" />
                         <div className="flex gap-0.5 bg-[var(--bg-input)] rounded overflow-hidden shrink-0">
                           {[
                             { label: 'COP', value: 'COP' },
@@ -855,6 +757,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                       <div className="flex-1 flex items-center justify-between min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="text-[11px] text-[var(--text-primary)] font-medium truncate">{local.label}</span>
+                          {incDate && <span className="text-[10px] text-[var(--text-muted)]">{incDate}</span>}
                           <span className="text-[10px] text-[var(--text-muted)] shrink-0">{local.currency}</span>
                           {local.currency !== 'COP' && (
                             <span className="text-[11px] text-[var(--text-muted)]">{local.amount} {local.currency}</span>

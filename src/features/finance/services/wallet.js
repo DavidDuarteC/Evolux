@@ -18,7 +18,6 @@ export async function getWalletMonth(userId, monthKey) {
         .select('*')
         .eq('user_id', userId)
         .eq('month_key', monthKey)
-        .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
     if (error) handleError(error);
 
@@ -33,14 +32,13 @@ export async function getWalletMonth(userId, monthKey) {
 }
 
 // Crea un item vacío en una columna y devuelve la fila creada.
-export async function addWalletItem(userId, monthKey, columnType, sortOrder = 0) {
+export async function addWalletItem(userId, monthKey, columnType) {
     const encryptedItem = await transformSensitiveFields({
         user_id: userId,
         month_key: monthKey,
         column_type: columnType,
         name: '',
         value: 0,
-        sort_order: sortOrder,
     }, 'wallet_items', 'encrypt');
 
     const { data, error } = await supabase

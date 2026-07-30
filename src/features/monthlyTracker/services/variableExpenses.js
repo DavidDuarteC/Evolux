@@ -11,8 +11,7 @@ export const getVariableExpenses = async (userId, budgetId) => {
     .from('monthly_variable_expenses')
     .select('*')
     .eq('user_id', userId)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
+    ;
 
   if (budgetId) {
     query = query.eq('monthly_budget_id', budgetId);

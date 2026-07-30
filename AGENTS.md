@@ -71,7 +71,7 @@ npm run test:watch # Vitest in watch mode
 - Currency formatting uses Colombian locale: `$X.XXX` (dots as thousands separators)
 - Dates: frontend uses "Mes DD" format (e.g. "Ene 15"), database uses "YYYY-MM-DD"
 - **Finance.jsx** is modularized into 2 tabs:
-  1. `IncomeExpensesTab.jsx`: Ingresos Fijos (Wise deposits/withdrawals + Manual COP/USD), Gastos Anuales, Gastos Fijos y Gastos Variables. Section buttons ("Copiar mes anterior" y "Limpiar") trigger a `ConfirmModal` popup with clear descriptions before execution. Row up/down arrows reorder items visually and persist `sort_order`.
+  1. `IncomeExpensesTab.jsx`: Ingresos Fijos (Wise deposits/withdrawals + Manual COP/USD), Gastos Anuales, Gastos Fijos y Gastos Variables. Section buttons ("Copiar mes anterior" y "Limpiar") trigger a `ConfirmModal` popup with selectable items. Items are sorted by date on the frontend.
   2. `LiquidityTab.jsx`: Wallet items (actual money accounts, pending income, debts).
 - **Profile.jsx** has a Wise toggle (`profiles.use_wise`) that shows/hides the Wise section in Finance → Ingresos. When off, only Manual COP/USD input is shown.
 - **Dashboard.jsx** is the single central hub for Analytics & History. Multi-bar chart compares **Ingresos vs Gastos Fijos vs Gastos Variables vs Ahorro** with range selectors (3M, 6M, 1A), expense donut chart, CDT/Colchón accumulated savings area chart, task/habit rates, financial goals progress, and registered months history.
