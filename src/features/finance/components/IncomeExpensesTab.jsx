@@ -756,16 +756,10 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                         <button onClick={() => deleteIncome(inc.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors shrink-0"><Trash2 size={13} /></button>
                       </div>
                     ) : (
-                      <div className="flex-1 flex items-center justify-between min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[11px] text-[var(--text-primary)] font-medium truncate">{local.label}</span>
-                          {incDate && <span className="text-[10px] text-[var(--text-muted)]">{incDate}</span>}
-                          <span className="text-[10px] text-[var(--text-muted)] shrink-0">{local.currency}</span>
-                          {local.currency !== 'COP' && (
-                            <span className="text-[11px] text-[var(--text-muted)]">{local.amount} {local.currency}</span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-medium" style={{ color: local.currency !== 'COP' ? COLORS.savings : 'var(--text-primary)' }}>
+                      <div className="flex-1 flex items-center min-w-0 gap-2">
+                        <span className="text-[11px] text-[var(--text-primary)] font-medium truncate flex-[2]">{local.label}</span>
+                        <span className="text-[10px] text-[var(--text-muted)] w-28 text-center shrink-0">{incDate}</span>
+                        <span className="text-[11px] font-bold text-right w-24 shrink-0" style={{ color: local.currency !== 'COP' ? COLORS.savings : 'var(--text-primary)' }}>
                           {local.currency === 'COP' ? formatCurrency(local.amount) : `≈ ${formatCurrencyDec(copPreview)}`}
                         </span>
                       </div>
