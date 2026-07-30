@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
+import { toast } from 'sonner';
 import * as accountsDb from '../services/accounts';
 import * as transactionsDb from '../services/transactions';
 import { FINANCE_SECTIONS, TRANSACTION_STATUS, TRANSACTION_TYPE, MONTHS_SHORT, MONTHS_LONG } from '../../../shared/lib/constants';
@@ -41,6 +42,7 @@ export function FinanceProvider({ children }) {
             setTransactions(transactionsData || []);
         } catch (error) {
             console.error('Error loading finance data:', error);
+            toast.error('Error al cargar datos financieros');
         } finally {
             setLoading(false);
         }
@@ -59,6 +61,7 @@ export function FinanceProvider({ children }) {
             ));
         } catch (error) {
             console.error('Error updating account:', error);
+            toast.error('Error al actualizar cuenta');
         }
     };
 

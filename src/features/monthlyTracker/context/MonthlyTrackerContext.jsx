@@ -7,21 +7,13 @@ import * as variableExpensesDb from '../services/variableExpenses';
 import * as depositsDb from '../services/deposits';
 import * as incomesDb from '../services/incomes';
 
+import { MONTHS_LONG, MONTHS_SHORT } from '../../../shared/lib/constants';
+
 const MonthlyTrackerContext = createContext();
 
 export function useMonthlyTracker() {
   return useContext(MonthlyTrackerContext);
 }
-
-const MONTHS_LONG = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-];
-
-const MONTHS_SHORT = [
-  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
-];
 
 const DEFAULT_FIXED_EXPENSES = [
   { label: 'Entrenador', amount: 250000 },
@@ -81,7 +73,7 @@ export function MonthlyTrackerProvider({ children }) {
       loadTimedOut = true;
       console.warn('Monthly tracker load timeout - forcing loading to false');
       setLoading(false);
-    }, 15000);
+    }, 10000);
 
     try {
       let [budgetsData, fixedData, variablesData, depositsData, incomesData] = await Promise.all([
@@ -285,22 +277,30 @@ export function MonthlyTrackerProvider({ children }) {
     const m = currentBudget;
     const budgetIncomes = m.incomes || [];
 
-    // Sum all incomes (COP directly, EUR/USD converted)
-    const totalCOP = budgetIncomes
-      .filter((i) => (i.status || 0) === 1)
-      .reduce((sum, i) => {
-        const amt = parseFloat(i.amount) || 0;
-        if (i.currency === 'COP') return sum + amt;
-        const net = amt - (parseFloat(i.fee) || 0);
-        return sum + Math.round(net * (parseFloat(i.rate) || 0));
-      }, 0);
+    const paidIncomes = budgetIncomes.filter((i) => (i.status || 0) === 1);
+    const activeIncomes = paidIncomes.length > 0 ? paidIncomes : budgetIncomes;
+
+    // Sum incomes (COP directly, EUR/USD converted)
+    const totalCOP = activeIncomes.reduce((sum, i) => {
+      const amt = parseFloat(i.amount) || 0;
+      if (i.currency === 'COP') return sum + amt;
+      const net = amt - (parseFloat(i.fee) || 0);
+      return sum + Math.round(net * (parseFloat(i.rate) || 0));
+    }, 0);
 
     const cop = totalCOP;
 
     const ahorro = Math.round(cop * (m.savings_pct || 0) / 100);
     const colchon = Math.round(cop * (m.cushion_pct || 0) / 100);
-    const fixedTotal = fixedExpenses.filter((g) => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
-    const varTotal = (m.gastosVar || []).filter((g) => (g.status || 0) === 1).reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+
+    const paidFixed = fixedExpenses.filter((g) => (g.status || 0) === 1);
+    const activeFixed = paidFixed.length > 0 ? paidFixed : fixedExpenses;
+    const fixedTotal = activeFixed.reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+
+    const paidVar = (m.gastosVar || []).filter((g) => (g.status || 0) === 1);
+    const activeVar = paidVar.length > 0 ? paidVar : (m.gastosVar || []);
+    const varTotal = activeVar.reduce((s, g) => s + (parseFloat(g.amount) || 0), 0);
+
     const gastos = fixedTotal + varTotal;
     const disponible = cop - ahorro - colchon - gastos;
 
@@ -463,6 +463,82 @@ export function MonthlyTrackerProvider({ children }) {
       await variableExpensesDb.updateVariableExpense(id, userId, { status: nextStatus });
     } catch (error) {
       console.error('Error toggling variable expense status:', error);
+    }
+  }, [userId, currentBudget]);
+
+  const moveFixedExpense = useCallback(async (id, direction) => {
+    const idx = fixedExpenses.findIndex((item) => item.id === id);
+    if (idx === -1) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= fixedExpenses.length) return;
+
+    const newOrder = [...fixedExpenses];
+    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+    const updated = newOrder.map((item, index) => ({ ...item, sort_order: index }));
+
+    setFixedExpenses(updated);
+    if (currentBudget) {
+      const budgetId = currentBudget.id;
+      setBudgets((prev) => prev.map((b) => (b.id === budgetId ? { ...b, fixedExpenses: updated } : b)));
+    }
+
+    try {
+      await Promise.all([
+        fixedExpensesDb.updateFixedExpense(updated[idx].id, userId, { sort_order: idx }),
+        fixedExpensesDb.updateFixedExpense(updated[swapIdx].id, userId, { sort_order: swapIdx }),
+      ]);
+    } catch (err) {
+      console.error('Error moving fixed expense:', err);
+    }
+  }, [userId, fixedExpenses, currentBudget]);
+
+  const moveVariableExpense = useCallback(async (id, direction) => {
+    if (!currentBudget) return;
+    const varItems = currentBudget.gastosVar || [];
+    const idx = varItems.findIndex((item) => item.id === id);
+    if (idx === -1) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= varItems.length) return;
+
+    const newOrder = [...varItems];
+    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+    const updated = newOrder.map((item, index) => ({ ...item, sort_order: index }));
+
+    const budgetId = currentBudget.id;
+    setBudgets((prev) => prev.map((b) => (b.id === budgetId ? { ...b, gastosVar: updated } : b)));
+
+    try {
+      await Promise.all([
+        variableExpensesDb.updateVariableExpense(updated[idx].id, userId, { sort_order: idx }),
+        variableExpensesDb.updateVariableExpense(updated[swapIdx].id, userId, { sort_order: swapIdx }),
+      ]);
+    } catch (err) {
+      console.error('Error moving variable expense:', err);
+    }
+  }, [userId, currentBudget]);
+
+  const moveIncome = useCallback(async (id, direction) => {
+    if (!currentBudget) return;
+    const incomes = currentBudget.incomes || [];
+    const idx = incomes.findIndex((item) => item.id === id);
+    if (idx === -1) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= incomes.length) return;
+
+    const newOrder = [...incomes];
+    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+    const updated = newOrder.map((item, index) => ({ ...item, sort_order: index }));
+
+    const budgetId = currentBudget.id;
+    setBudgets((prev) => prev.map((b) => (b.id === budgetId ? { ...b, incomes: updated } : b)));
+
+    try {
+      await Promise.all([
+        incomesDb.updateIncome(updated[idx].id, userId, { sort_order: idx }),
+        incomesDb.updateIncome(updated[swapIdx].id, userId, { sort_order: swapIdx }),
+      ]);
+    } catch (err) {
+      console.error('Error moving income:', err);
     }
   }, [userId, currentBudget]);
 
@@ -677,6 +753,169 @@ export function MonthlyTrackerProvider({ children }) {
     }
   }, [userId, currentBudget, budgets, fixedExpenses]);
 
+  // ====== Section Specific Copy / Clear ======
+  const copyIncomesFromPreviousMonth = useCallback(async () => {
+    if (!userId || !currentBudget || budgets.length < 1) return;
+    const curMonth = Number(currentBudget.month);
+    const curYear = Number(currentBudget.year);
+    let prevMonth = curMonth - 1;
+    let prevYear = curYear;
+    if (prevMonth < 0) { prevMonth = 11; prevYear = curYear - 1; }
+
+    const prev = budgets.find((b) => Number(b.year) === prevYear && Number(b.month) === prevMonth);
+    if (!prev || !prev.incomes || prev.incomes.length === 0) {
+      toast.warning('No hay ingresos del mes anterior para copiar');
+      return;
+    }
+
+    try {
+      const budgetId = currentBudget.id;
+      for (const inc of currentBudget.incomes || []) {
+        if (inc.id) await incomesDb.deleteIncome(inc.id, userId);
+      }
+      const newIncomes = await Promise.all(
+        prev.incomes.map((inc, idx) =>
+          incomesDb.createIncome(userId, budgetId, {
+            label: inc.label,
+            currency: inc.currency,
+            amount: inc.amount,
+            fee: inc.fee || '0',
+            rate: inc.rate || '0',
+            status: 0,
+            sort_order: idx,
+          })
+        )
+      );
+      setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, incomes: newIncomes } : b));
+      toast.success('Ingresos copiados del mes anterior');
+    } catch (err) {
+      console.error('Error copying incomes:', err);
+      toast.error('Error al copiar ingresos');
+    }
+  }, [userId, currentBudget, budgets]);
+
+  const clearIncomes = useCallback(async () => {
+    if (!userId || !currentBudget) return;
+    try {
+      const budgetId = currentBudget.id;
+      for (const inc of currentBudget.incomes || []) {
+        if (inc.id) await incomesDb.deleteIncome(inc.id, userId);
+      }
+      setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, incomes: [] } : b));
+      toast.success('Ingresos limpiados');
+    } catch (err) {
+      console.error('Error clearing incomes:', err);
+      toast.error('Error al limpiar ingresos');
+    }
+  }, [userId, currentBudget]);
+
+  const copyFixedExpensesFromPreviousMonth = useCallback(async () => {
+    if (!userId || !currentBudget || budgets.length < 1) return;
+    const curMonth = Number(currentBudget.month);
+    const curYear = Number(currentBudget.year);
+    let prevMonth = curMonth - 1;
+    let prevYear = curYear;
+    if (prevMonth < 0) { prevMonth = 11; prevYear = curYear - 1; }
+
+    const prev = budgets.find((b) => Number(b.year) === prevYear && Number(b.month) === prevMonth);
+    if (!prev || !prev.fixedExpenses || prev.fixedExpenses.length === 0) {
+      toast.warning('No hay gastos fijos del mes anterior para copiar');
+      return;
+    }
+
+    try {
+      const budgetId = currentBudget.id;
+      for (const fe of currentBudget.fixedExpenses || []) {
+        if (fe.id) await fixedExpensesDb.deleteFixedExpense(fe.id, userId);
+      }
+      const newFixed = await Promise.all(
+        prev.fixedExpenses.map((fe, idx) =>
+          fixedExpensesDb.createFixedExpense(userId, {
+            label: fe.label,
+            amount: fe.amount,
+            sort_order: idx,
+            budget_id: budgetId,
+            status: 0,
+            payment_date: fe.payment_date || fe.date || '',
+          })
+        )
+      );
+      setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, fixedExpenses: newFixed } : b));
+      toast.success('Gastos fijos copiados del mes anterior');
+    } catch (err) {
+      console.error('Error copying fixed expenses:', err);
+      toast.error('Error al copiar gastos fijos');
+    }
+  }, [userId, currentBudget, budgets]);
+
+  const clearFixedExpenses = useCallback(async () => {
+    if (!userId || !currentBudget) return;
+    try {
+      const budgetId = currentBudget.id;
+      for (const fe of currentBudget.fixedExpenses || []) {
+        if (fe.id) await fixedExpensesDb.deleteFixedExpense(fe.id, userId);
+      }
+      setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, fixedExpenses: [] } : b));
+      toast.success('Gastos fijos limpiados');
+    } catch (err) {
+      console.error('Error clearing fixed expenses:', err);
+      toast.error('Error al limpiar gastos fijos');
+    }
+  }, [userId, currentBudget]);
+
+  const copyVariableExpensesFromPreviousMonth = useCallback(async () => {
+    if (!userId || !currentBudget || budgets.length < 1) return;
+    const curMonth = Number(currentBudget.month);
+    const curYear = Number(currentBudget.year);
+    let prevMonth = curMonth - 1;
+    let prevYear = curYear;
+    if (prevMonth < 0) { prevMonth = 11; prevYear = curYear - 1; }
+
+    const prev = budgets.find((b) => Number(b.year) === prevYear && Number(b.month) === prevMonth);
+    if (!prev || !prev.gastosVar || prev.gastosVar.length === 0) {
+      toast.warning('No hay gastos variables del mes anterior para copiar');
+      return;
+    }
+
+    try {
+      const budgetId = currentBudget.id;
+      for (const g of currentBudget.gastosVar || []) {
+        if (g.id) await variableExpensesDb.deleteVariableExpense(g.id, userId);
+      }
+      const newVar = await Promise.all(
+        prev.gastosVar.map((g, idx) =>
+          variableExpensesDb.createVariableExpense(userId, budgetId, {
+            label: g.label,
+            amount: g.amount,
+            sort_order: idx,
+            status: 0,
+            date: g.date || '',
+          })
+        )
+      );
+      setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, gastosVar: newVar } : b));
+      toast.success('Gastos variables copiados del mes anterior');
+    } catch (err) {
+      console.error('Error copying variable expenses:', err);
+      toast.error('Error al copiar gastos variables');
+    }
+  }, [userId, currentBudget, budgets]);
+
+  const clearVariableExpenses = useCallback(async () => {
+    if (!userId || !currentBudget) return;
+    try {
+      const budgetId = currentBudget.id;
+      for (const g of currentBudget.gastosVar || []) {
+        if (g.id) await variableExpensesDb.deleteVariableExpense(g.id, userId);
+      }
+      setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, gastosVar: [] } : b));
+      toast.success('Gastos variables limpiados');
+    } catch (err) {
+      console.error('Error clearing variable expenses:', err);
+      toast.error('Error al limpiar gastos variables');
+    }
+  }, [userId, currentBudget]);
+
   const saveCurrentMonth = useCallback(async () => {
     if (!userId || !currentBudget) return;
     try {
@@ -714,12 +953,24 @@ export function MonthlyTrackerProvider({ children }) {
         )
       );
 
-      const newIncomes = await Promise.all([
+      const newIncomes = await Promise.all(
+        (last.incomes || []).map((inc, idx) =>
+          incomesDb.createIncome(userId, createdBudget.id, {
+            label: inc.label,
+            currency: inc.currency,
+            amount: inc.amount,
+            fee: inc.fee || '0',
+            rate: inc.rate || '0',
+            status: 0,
+            sort_order: idx,
+          })
+        )
+      );
+
+      // Fallback: create default incomes if previous month had none
+      const finalIncomes = newIncomes.length > 0 ? newIncomes : await Promise.all([
         incomesDb.createIncome(userId, createdBudget.id, {
           label: 'Ingreso principal', currency: 'COP', amount: '0', sort_order: 0,
-        }),
-        incomesDb.createIncome(userId, createdBudget.id, {
-          label: 'Wise EUR', currency: 'EUR', amount: '600', fee: '15.28', rate: '3709.55', sort_order: 1,
         }),
       ]);
 
@@ -727,7 +978,7 @@ export function MonthlyTrackerProvider({ children }) {
         ...createdBudget,
         gastosVar: newVariables,
         withdrawals: [],
-        incomes: newIncomes,
+        incomes: finalIncomes,
       };
       setBudgets((prev) => [...prev, budgetWithIncomes]);
       setCurrentIndex(budgets.length);
@@ -760,11 +1011,15 @@ export function MonthlyTrackerProvider({ children }) {
     fixedExpenses, deposits, wiseBalance,
     loading, calculations, formatCurrency, formatCurrencyDec, formatEur, formatUsd, MONTHS_LONG, MONTHS_SHORT,
     updateBudgetField,
-    updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus,
-    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus,
-    addIncome, updateIncome, deleteIncome, toggleIncomeStatus,
+    updateFixedExpense, addFixedExpense, deleteFixedExpense, toggleFixedExpenseStatus, moveFixedExpense,
+    updateVariableExpense, addVariableExpense, deleteVariableExpense, toggleVariableExpenseStatus, moveVariableExpense,
+    addIncome, updateIncome, deleteIncome, toggleIncomeStatus, moveIncome,
     addDeposit, updateDeposit, deleteDeposit,
-    saveCurrentMonth, createNextMonth, copyFromPreviousMonth, savedBudgets, accumulated, reload: loadData,
+    saveCurrentMonth, createNextMonth, copyFromPreviousMonth,
+    copyIncomesFromPreviousMonth, clearIncomes,
+    copyFixedExpensesFromPreviousMonth, clearFixedExpenses,
+    copyVariableExpensesFromPreviousMonth, clearVariableExpenses,
+    savedBudgets, accumulated, reload: loadData,
   };
 
   return (

@@ -19,8 +19,9 @@ export function AuthProvider({ children }) {
   const fetchProfile = async (u) => {
     if (!u) {
       setProfile(null);
-      return;
+      return null;
     }
+    const defaultName = u.user_metadata?.name || u.email?.split('@')[0] || 'Usuario';
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -31,7 +32,7 @@ export function AuthProvider({ children }) {
       if (!data) {
         const newProfile = {
           id: u.id,
-          name: u.user_metadata?.name || u.email?.split('@')[0] || 'Guest',
+          name: defaultName,
           plan: 'free',
           theme: 'dark',
           accent_color: '#3b82f6'
@@ -42,66 +43,60 @@ export function AuthProvider({ children }) {
           .insert([newProfile]);
 
         setProfile(newProfile);
+        return newProfile;
       } else {
-        setProfile(data);
+        const profileObj = {
+          ...data,
+          name: data.name || defaultName
+        };
+        setProfile(profileObj);
+        return profileObj;
       }
     } catch (err) {
       console.error('Error fetching user profile:', err);
-      // Fallback: set a local profile so the app doesn't break
-      setProfile({
+      const fallback = {
         id: u.id,
-        name: u.user_metadata?.name || u.email?.split('@')[0] || 'Guest',
+        name: defaultName,
         plan: 'free',
         theme: 'dark',
         accent_color: '#3b82f6'
-      });
+      };
+      setProfile(fallback);
+      return fallback;
     }
   };
 
+  // Separate effect to load profile when user changes
+  useEffect(() => {
+    if (user) {
+      fetchProfile(user).catch((err) => console.error('Error fetching profile:', err));
+    } else {
+      setProfile(null);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     let isMounted = true;
-    const timeoutId = setTimeout(() => {
-      if (isMounted) {
-        console.warn('Auth init timeout - forcing loading to false');
-        setLoading(false);
-      }
-    }, 25000);
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    // Synchronous auth state listener (no blocking db calls inside event)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return;
       const u = session?.user ?? null;
       setUser(u);
-      try {
-        await fetchProfile(u);
-      } catch (err) {
-        console.error('Error fetching profile on init:', err);
-      }
-      clearTimeout(timeoutId);
+      setLoading(false);
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
+      setUser(session?.user ?? null);
       setLoading(false);
     }).catch((err) => {
       console.error('Auth session error:', err);
-      if (isMounted) {
-        clearTimeout(timeoutId);
-        setLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
-      // getSession handles the initial load; this listener only handles real changes
-      if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
-      } else if (event === 'USER_UPDATED') {
-        const u = session?.user ?? null;
-        setUser(u);
-        await fetchProfile(u);
-      }
+      if (isMounted) setLoading(false);
     });
 
     return () => {
       isMounted = false;
-      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
@@ -113,6 +108,12 @@ export function AuthProvider({ children }) {
     });
 
     if (error) throw error;
+    setUser(data.user);
+    try {
+      await fetchProfile(data.user);
+    } catch (err) {
+      console.error('Error fetching profile on login:', err);
+    }
     return { success: true, user_id: data.user.id };
   };
 
@@ -128,7 +129,15 @@ export function AuthProvider({ children }) {
     });
 
     if (error) throw error;
-    return { success: true, user_id: data.user.id };
+    if (data.user) {
+      setUser(data.user);
+      try {
+        await fetchProfile(data.user);
+      } catch (err) {
+        console.error('Error fetching profile on register:', err);
+      }
+    }
+    return { success: true, user_id: data?.user?.id };
   };
 
   const googleLogin = async (accessToken) => {

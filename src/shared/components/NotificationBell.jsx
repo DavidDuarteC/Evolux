@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, X, Calendar, CheckSquare, CreditCard, AlertCircle } from 'lucide-react';
 import { useTasks } from '../../features/tasks/context/TaskContext';
-import { useFinance } from '../../features/finance/context/FinanceContext';
+import { useMonthlyTracker } from '../../features/monthlyTracker/context/MonthlyTrackerContext';
 
 export default function NotificationBell() {
     const { tasks, spaces, categories } = useTasks();
-    const { db, currentDate, months } = useFinance();
+    const { currentBudget, fixedExpenses, MONTHS_SHORT } = useMonthlyTracker();
     const [isOpen, setIsOpen] = useState(false);
     const [dismissed, setDismissed] = useState(() => {
         const saved = localStorage.getItem('app_dismissed_notifications');
@@ -81,31 +81,44 @@ export default function NotificationBell() {
         }
     });
 
-    // 2. Payment notifications (pending payments for current month)
-    const year = currentDate.getFullYear();
-    const monthIdx = currentDate.getMonth();
-    const monthData = db?.[year]?.months?.[monthIdx] || {};
-    
-    const checkPayments = (items, label) => {
-        (items || []).forEach((item, idx) => {
-            if (item.status === 0) { // Pending (not paid)
+    // 2. Payment notifications (pending expenses from monthly tracker)
+    if (currentBudget) {
+        const monthLabel = MONTHS_SHORT?.[currentBudget.month] || '';
+
+        // Fixed expenses
+        (fixedExpenses || []).forEach((item) => {
+            if ((item.status || 0) === 0) {
                 notifications.push({
-                    id: `payment_${label}_${idx}_${monthIdx}`,
+                    id: `payment_fixed_${item.id}`,
                     type: 'payment',
                     icon: CreditCard,
-                    title: item.name,
-                    subtitle: `Pago pendiente — ${months[monthIdx]}`,
-                    badge: label === 'fixed' ? 'Gasto Fijo' : 'Gasto Variable',
-                    badgeColor: label === 'fixed' ? '#f87171' : '#fb923c',
+                    title: item.label,
+                    subtitle: `Pago pendiente — ${monthLabel}`,
+                    badge: 'Gasto Fijo',
+                    badgeColor: '#f87171',
                     date: today,
                     priority: 3
                 });
             }
         });
-    };
 
-    checkPayments(monthData.monthlyExpenses, 'fixed');
-    checkPayments(monthData.variableExpenses, 'variable');
+        // Variable expenses
+        (currentBudget.gastosVar || []).forEach((item) => {
+            if ((item.status || 0) === 0) {
+                notifications.push({
+                    id: `payment_var_${item.id}`,
+                    type: 'payment',
+                    icon: CreditCard,
+                    title: item.label,
+                    subtitle: `Pago pendiente — ${monthLabel}`,
+                    badge: 'Gasto Variable',
+                    badgeColor: '#fb923c',
+                    date: today,
+                    priority: 3
+                });
+            }
+        });
+    }
 
     // Filter dismissed and sort by priority
     const activeNotifications = notifications

@@ -5,7 +5,7 @@ import NotificationBell from '../shared/components/NotificationBell';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../context/ThemeContext';
 
-export default function MainLayout({ currentTab, onTabChange, children }) {
+export default function MainLayout({ children }) {
     const { user } = useUser();
     const { isDark, accentColor } = useTheme();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -42,8 +42,6 @@ export default function MainLayout({ currentTab, onTabChange, children }) {
             )}
 
             <Sidebar
-                currentTab={currentTab}
-                onTabChange={onTabChange}
                 mobileOpen={mobileMenuOpen}
                 onMobileClose={() => setMobileMenuOpen(false)}
             />
