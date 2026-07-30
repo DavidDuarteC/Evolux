@@ -157,6 +157,8 @@ const ListHeader = ({ showDate = false }) => (
 
 const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, canDelete, onMove, isFirst, isLast, showDate = false }) => {
   const displayLabel = item.name !== undefined ? item.name : (item.label || '');
+  const rawDate = item.date || item.payment_date || (item.created_at ? String(item.created_at).slice(0, 10) : '');
+  const dateFieldName = item.payment_date !== undefined ? 'payment_date' : 'date';
   const fmtAmount = (val) => {
     const n = typeof val === 'string' ? parseFloat(val.replace(/\./g, '')) : (parseFloat(val) || 0);
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
@@ -179,8 +181,8 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
             placeholder="Concepto" className="min-w-0 flex-1 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)]" />
           {showDate && (
             <CalendarInput
-              value={item.date || ''}
-              onChange={(val) => onChange(item.id, 'date', val)}
+              value={rawDate}
+              onChange={(val) => onChange(item.id, dateFieldName, val)}
               placeholder="Fecha"
             />
           )}
@@ -199,7 +201,7 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
           <span className="text-[11px] text-[var(--text-primary)] font-medium truncate flex-1">{displayLabel}</span>
           {showDate && (
             <span className="text-[10px] text-[var(--text-muted)] w-28 text-center shrink-0">
-              {item.date || ''}
+              {rawDate}
             </span>
           )}
           <span className="text-[11px] font-bold text-[var(--text-primary)] w-24 text-right shrink-0">{fmtAmount(item.amount)}</span>
