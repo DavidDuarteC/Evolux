@@ -231,18 +231,18 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             <div
                 className={`fixed top-0 left-0 z-50 h-screen md:hidden transition-transform duration-300 ease-out ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
             >
-                <div className="h-full py-4 pl-3 pr-2" style={{ width: 180 }}>
+                <div className="h-full py-4 pl-2 pr-1.5" style={{ width: 140 }}>
                     {sidebarContent}
                 </div>
             </div>
 
             {/* Desktop sidebar — sticky, collapsible width */}
             <motion.div
-                animate={{ width: isCollapsed ? 64 : 180 }}
+                animate={{ width: isCollapsed ? 56 : 140 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="hidden md:flex h-screen py-4 flex-col shrink-0 sticky top-0 z-50 pl-3 pr-2"
+                className="hidden md:flex h-screen py-4 flex-col shrink-0 sticky top-0 z-50 pl-2 pr-1.5"
             >
-                <div className="h-full" style={{ width: isCollapsed ? 64 : 180 }}>
+                <div className="h-full" style={{ width: isCollapsed ? 56 : 140 }}>
                     {sidebarContent}
                 </div>
             </motion.div>
