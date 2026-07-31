@@ -47,6 +47,9 @@ function createDefaultBudget(year, month) {
   };
 }
 
+const sortByDate = (arr, dateField = 'date') =>
+  [...arr].sort((a, b) => ((a[dateField] || a.payment_date || '') > (b[dateField] || b.payment_date || '') ? 1 : -1));
+
 export function MonthlyTrackerProvider({ children }) {
   const { userId, isAuthenticated } = useAuth();
   const [budgets, setBudgets] = useState([]);
@@ -347,11 +350,11 @@ export function MonthlyTrackerProvider({ children }) {
     if (!userId) return;
     try {
       const parsedValue = field === 'amount' ? parseFloat(value) || 0 : value;
-      setFixedExpenses((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: parsedValue } : item)));
+      setFixedExpenses((prev) => sortByDate(prev.map((item) => (item.id === id ? { ...item, [field]: parsedValue } : item)), 'payment_date'));
       // Also update in budgets array
       setBudgets((prev) => prev.map((b) => ({
         ...b,
-        fixedExpenses: (b.fixedExpenses || []).map((f) => f.id === id ? { ...f, [field]: parsedValue } : f),
+        fixedExpenses: sortByDate((b.fixedExpenses || []).map((f) => f.id === id ? { ...f, [field]: parsedValue } : f), 'payment_date'),
       })));
       await fixedExpensesDb.updateFixedExpense(id, userId, { [field]: parsedValue });
     } catch (error) {
@@ -366,9 +369,9 @@ export function MonthlyTrackerProvider({ children }) {
       const newItem = await fixedExpensesDb.createFixedExpense(userId, {
         label: 'Nuevo gasto', amount: 0, budget_id: budgetId,
       });
-      setFixedExpenses((prev) => [...prev, newItem]);
+      setFixedExpenses((prev) => sortByDate([...prev, newItem], 'payment_date'));
       setBudgets((prev) => prev.map((b) =>
-        b.id === budgetId ? { ...b, fixedExpenses: [...(b.fixedExpenses || []), newItem] } : b
+        b.id === budgetId ? { ...b, fixedExpenses: sortByDate([...(b.fixedExpenses || []), newItem], 'payment_date') } : b
       ));
     } catch (error) {
       console.error('Error adding fixed expense:', error);
@@ -413,7 +416,7 @@ export function MonthlyTrackerProvider({ children }) {
     try {
       setBudgets((prev) => prev.map((b) => {
         if (b.id !== budgetId) return b;
-        return { ...b, gastosVar: b.gastosVar.map((g) => g.id === id ? { ...g, [field]: parsedValue } : g) };
+        return { ...b, gastosVar: sortByDate(b.gastosVar.map((g) => g.id === id ? { ...g, [field]: parsedValue } : g)) };
       }));
       await variableExpensesDb.updateVariableExpense(id, userId, { [field]: parsedValue });
     } catch (error) {
@@ -426,7 +429,7 @@ export function MonthlyTrackerProvider({ children }) {
     const budgetId = currentBudget.id;
     try {
       const newItem = await variableExpensesDb.createVariableExpense(userId, budgetId, { label: 'Nuevo gasto', amount: 0 });
-      setBudgets((prev) => prev.map((b) => b.id === budgetId ? { ...b, gastosVar: [...(b.gastosVar || []), newItem] } : b));
+      setBudgets((prev) => prev.map((b) => b.id === budgetId ? { ...b, gastosVar: sortByDate([...(b.gastosVar || []), newItem]) } : b));
     } catch (error) {
       console.error('Error adding variable expense:', error);
     }
@@ -470,7 +473,7 @@ export function MonthlyTrackerProvider({ children }) {
     try {
       const newItem = await incomesDb.createIncome(userId, budgetId, { ...data });
       setBudgets((prev) => prev.map((b) =>
-        b.id === budgetId ? { ...b, incomes: [...(b.incomes || []), newItem] } : b
+        b.id === budgetId ? { ...b, incomes: sortByDate([...(b.incomes || []), newItem]) } : b
       ));
       return newItem;
     } catch (error) {
@@ -484,7 +487,7 @@ export function MonthlyTrackerProvider({ children }) {
       await incomesDb.updateIncome(id, userId, updates);
       setBudgets((prev) => prev.map((b) => ({
         ...b,
-        incomes: (b.incomes || []).map((i) => i.id === id ? { ...i, ...updates } : i),
+        incomes: sortByDate((b.incomes || []).map((i) => i.id === id ? { ...i, ...updates } : i)),
       })));
     } catch (error) {
       console.error('Error updating income:', error);
@@ -707,7 +710,7 @@ export function MonthlyTrackerProvider({ children }) {
           })
         )
       );
-      setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, incomes: newIncomes } : b));
+      setBudgets((prevBudgets) => prevBudgets.map((b) => b.id === budgetId ? { ...b, incomes: sortByDate(newIncomes) } : b));
       toast.success('Ingresos copiados del mes anterior');
     } catch (err) {
       console.error('Error copying incomes:', err);
