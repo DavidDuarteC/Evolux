@@ -557,7 +557,10 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
 
   const updateAnnualExpense = async (id, field, value) => {
     if (!userId) return;
-    setAnnualExpenses((prev) => prev.map((a) => a.id === id ? { ...a, [field]: value } : a));
+    setAnnualExpenses((prev) => {
+      const updated = prev.map((a) => a.id === id ? { ...a, [field]: value } : a);
+      return updated.sort((a, b) => ((a.payment_date || '') > (b.payment_date || '') ? 1 : -1));
+    });
     await annualExpensesDb.updateAnnualExpense(id, userId, { [field]: value });
   };
 
