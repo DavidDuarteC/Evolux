@@ -47,8 +47,19 @@ function createDefaultBudget(year, month) {
   };
 }
 
+const parseCopAmount = (value) => {
+  if (typeof value === 'number') return value;
+  const digits = String(value).replace(/\./g, '').replace(/,/g, '');
+  return parseInt(digits, 10) || 0;
+};
+
 const sortByDate = (arr, dateField = 'date') =>
-  [...arr].sort((a, b) => ((a[dateField] || a.payment_date || '') > (b[dateField] || b.payment_date || '') ? 1 : -1));
+  [...arr].sort((a, b) => {
+    const da = a[dateField] || a.payment_date || '';
+    const db = b[dateField] || b.payment_date || '';
+    if (da === db) return String(a.created_at || a.id).localeCompare(String(b.created_at || b.id));
+    return da < db ? -1 : 1;
+  });
 
 export function MonthlyTrackerProvider({ children }) {
   const { userId, isAuthenticated } = useAuth();
@@ -349,12 +360,13 @@ export function MonthlyTrackerProvider({ children }) {
   const updateFixedExpense = useCallback(async (id, field, value) => {
     if (!userId) return;
     try {
-      const parsedValue = field === 'amount' ? parseFloat(value) || 0 : value;
-      setFixedExpenses((prev) => sortByDate(prev.map((item) => (item.id === id ? { ...item, [field]: parsedValue } : item)), 'payment_date'));
+      const parsedValue = field === 'amount' ? parseCopAmount(value) : value;
+      const maybeSort = (list) => field === 'payment_date' ? sortByDate(list, 'payment_date') : list;
+      setFixedExpenses((prev) => maybeSort(prev.map((item) => (item.id === id ? { ...item, [field]: parsedValue } : item))));
       // Also update in budgets array
       setBudgets((prev) => prev.map((b) => ({
         ...b,
-        fixedExpenses: sortByDate((b.fixedExpenses || []).map((f) => f.id === id ? { ...f, [field]: parsedValue } : f), 'payment_date'),
+        fixedExpenses: maybeSort((b.fixedExpenses || []).map((f) => f.id === id ? { ...f, [field]: parsedValue } : f)),
       })));
       await fixedExpensesDb.updateFixedExpense(id, userId, { [field]: parsedValue });
     } catch (error) {
@@ -412,11 +424,12 @@ export function MonthlyTrackerProvider({ children }) {
   const updateVariableExpense = useCallback(async (id, field, value) => {
     if (!userId || !currentBudget) return;
     const budgetId = currentBudget.id;
-    const parsedValue = field === 'amount' ? parseFloat(value) || 0 : value;
+    const parsedValue = field === 'amount' ? parseCopAmount(value) : value;
+    const maybeSort = (list) => field === 'date' ? sortByDate(list) : list;
     try {
       setBudgets((prev) => prev.map((b) => {
         if (b.id !== budgetId) return b;
-        return { ...b, gastosVar: sortByDate(b.gastosVar.map((g) => g.id === id ? { ...g, [field]: parsedValue } : g)) };
+        return { ...b, gastosVar: maybeSort(b.gastosVar.map((g) => g.id === id ? { ...g, [field]: parsedValue } : g)) };
       }));
       await variableExpensesDb.updateVariableExpense(id, userId, { [field]: parsedValue });
     } catch (error) {
@@ -484,11 +497,11 @@ export function MonthlyTrackerProvider({ children }) {
   const updateIncome = useCallback(async (id, updates) => {
     if (!userId) return;
     try {
-      await incomesDb.updateIncome(id, userId, updates);
       setBudgets((prev) => prev.map((b) => ({
         ...b,
-        incomes: sortByDate((b.incomes || []).map((i) => i.id === id ? { ...i, ...updates } : i)),
+        incomes: updates.date ? sortByDate((b.incomes || []).map((i) => i.id === id ? { ...i, ...updates } : i)) : (b.incomes || []).map((i) => i.id === id ? { ...i, ...updates } : i),
       })));
+      await incomesDb.updateIncome(id, userId, updates);
     } catch (error) {
       console.error('Error updating income:', error);
     }

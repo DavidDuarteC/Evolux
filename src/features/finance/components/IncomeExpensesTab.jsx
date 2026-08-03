@@ -252,10 +252,10 @@ const TransactionRow = ({ item, isEditing, onChange, onDelete, onStatusToggle, c
               placeholder="Fecha"
             />
           )}
-          <input type="text" value={item.amount || ''} onChange={(e) => {
+          <input type="text" value={item.amount ?? ''} onChange={(e) => {
             const rawValue = e.target.value.replace(/\./g, '').replace(/,/g, '');
             if (!/^\d*$/.test(rawValue)) return;
-            onChange(item.id, 'amount', rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, "."));
+            onChange(item.id, 'amount', rawValue);
           }} placeholder="0" className="w-24 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] text-right focus:outline-none focus:border-[var(--border-hover)]" />
           <button onClick={() => canDelete && onDelete(item.id)} disabled={!canDelete}
             className={`p-1.5 rounded transition-colors shrink-0 ${canDelete ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : 'text-zinc-700 cursor-not-allowed'}`}>
@@ -467,17 +467,15 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
 
   useEffect(() => {
     if (!selectedBudget?.incomes) return;
-    const init = {};
-    for (const inc of selectedBudget.incomes) {
-      init[inc.id] = {
-        label: inc.label || '',
-        currency: inc.currency || 'COP',
-        amount: inc.amount || '0',
-        fee: inc.fee || '0',
-        rate: inc.rate || '0',
-      };
-    }
-    setEditingIncomes(init);
+    setEditingIncomes((prev) => {
+      const next = { ...prev };
+      const ids = new Set(selectedBudget.incomes.map((i) => i.id));
+      for (const inc of selectedBudget.incomes) {
+        if (!next[inc.id]) next[inc.id] = { label: inc.label || '', currency: inc.currency || 'COP', amount: inc.amount || '0', fee: inc.fee || '0', rate: inc.rate || '0', date: inc.date || '' };
+      }
+      for (const id of Object.keys(next)) if (!ids.has(id)) delete next[id];
+      return next;
+    });
   }, [selectedBudget?.incomes]);
 
   const setIncField = (id, field, value) => {
@@ -559,7 +557,12 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
     if (!userId) return;
     setAnnualExpenses((prev) => {
       const updated = prev.map((a) => a.id === id ? { ...a, [field]: value } : a);
-      return updated.sort((a, b) => ((a.payment_date || '') > (b.payment_date || '') ? 1 : -1));
+      if (field !== 'payment_date') return updated;
+      return updated.sort((a, b) => {
+        const da = a.payment_date || '';
+        const db = b.payment_date || '';
+        return da === db ? 0 : da < db ? -1 : 1;
+      });
     });
     await annualExpensesDb.updateAnnualExpense(id, userId, { [field]: value });
   };
@@ -659,7 +662,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
             {annualExpenses.map((item) => (
               <TransactionRow
                 key={item.id}
-                item={{ ...item, name: item.label, date: item.payment_date }}
+                item={item}
                 isEditing={uiState.annual}
                 onChange={(id, field, val) => updateAnnualExpense(id, field, val)}
                 onDelete={(id) => deleteAnnualExpense(id)}
@@ -730,7 +733,12 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                           </div>
                         </div>
                         <input type="text" inputMode="decimal" value={local.amount} onChange={(e) => {
-                          const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                          let v;
+                          if (local.currency === 'COP') {
+                            v = e.target.value.replace(/\D/g, '');
+                          } else {
+                            v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                          }
                           setIncField(inc.id, 'amount', v);
                         }} onBlur={() => saveInc(inc.id)} placeholder="0" className="w-16 bg-[var(--bg-input)] border border-[var(--border-card)] rounded px-1.5 py-1 text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-hover)] text-right" />
                         {local.currency !== 'COP' ? (
@@ -830,9 +838,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
           >
             <ListHeader showDate={true} />
             <div className="space-y-0">
-              {(selectedBudget?.fixedExpenses || []).map((item, idx) => {
-                const fixedItems = selectedBudget?.fixedExpenses || [];
-                return (
+              {(selectedBudget?.fixedExpenses || []).map((item) => (
                 <TransactionRow
                   key={item.id}
                   item={item}
@@ -841,10 +847,8 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   onDelete={deleteFixedExpense}
                   onStatusToggle={() => toggleFixedExpenseStatus(item.id)}
                   canDelete={true}
-                  onMove={(fromIdx, toIdx) => moveFixedExpense(fromIdx, toIdx)}
-                  index={idx}
                   showDate={true}
-                />);})}
+                />))}
             </div>
             <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
               <span className="text-xs font-medium text-[var(--text-muted)]">Total Fijos <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>
@@ -863,9 +867,7 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
           >
             <ListHeader showDate={true} />
             <div className="space-y-0">
-              {(selectedBudget?.gastosVar || []).map((item, idx) => {
-                const varItems = selectedBudget?.gastosVar || [];
-                return (
+              {(selectedBudget?.gastosVar || []).map((item) => (
                 <TransactionRow
                   key={item.id}
                   item={item}
@@ -874,10 +876,8 @@ export default function IncomeExpensesTab({ budgets: allBudgets, pickerDate }) {
                   onDelete={deleteVariableExpense}
                   onStatusToggle={() => toggleVariableExpenseStatus(item.id)}
                   canDelete={true}
-                  onMove={(fromIdx, toIdx) => moveVariableExpense(fromIdx, toIdx)}
-                  index={idx}
                   showDate={true}
-                />);})}
+                />))}
             </div>
             <div className="mt-4 pt-4 border-t border-[var(--border-card)]/50 flex justify-between items-center px-1">
               <span className="text-xs font-medium text-[var(--text-muted)]">Total Variables <span className="text-[var(--text-primary)]">(Mes anterior: $0)</span></span>
