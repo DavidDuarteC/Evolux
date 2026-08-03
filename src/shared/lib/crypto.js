@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase';
 const SENSITIVE_FIELDS = {
   accounts: { name: 'string', amount: 'number' },
   wallet_items: { name: 'string', value: 'number' },
-  goals: { title: 'string', target: 'number', current: 'number' },
+  goals: { title: 'string', target: 'number', current: 'number', currency: 'string', goal_type: 'string' },
   goal_history: { amount: 'number', note: 'string' },
   monthly_budgets: { salary_eur: 'number', wise_fee_eur: 'number', exchange_rate: 'number', manual_income_cop: 'number', usd_amount: 'number', usd_rate: 'number', usd_fee: 'number', usd_cop: 'number' },
   monthly_fixed_expenses: { label: 'string', amount: 'number' },

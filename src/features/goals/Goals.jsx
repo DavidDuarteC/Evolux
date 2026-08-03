@@ -8,7 +8,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../context/LanguageContext';
 import { getGoals, createGoal, updateGoal, deleteGoal, addGoalHistory, deleteGoalHistory } from './services/goals';
 
-const formatMoney = (amount) => {
+const formatMoney = (amount, currency = 'COP') => {
+    if (currency === 'COP') return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(amount);
+    if (currency === 'EUR') return '€' + Number(amount || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (currency === 'USD') return 'US$' + Number(amount || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(amount);
 };
 
@@ -34,6 +37,8 @@ export default function Goals() {
     const [modalAmount, setModalAmount] = useState('');
     const [modalColor, setModalColor] = useState('#4ade80');
     const [modalNoLimit, setModalNoLimit] = useState(false);
+    const [modalCurrency, setModalCurrency] = useState('COP');
+    const [modalGoalType, setModalGoalType] = useState('compra');
 
     const loadGoals = useCallback(async () => {
         if (!userId) return;
@@ -48,6 +53,8 @@ export default function Goals() {
                 target: g.target,
                 current: g.current,
                 color: g.color,
+                currency: g.currency || 'COP',
+                goal_type: g.goal_type || 'compra',
                 history: (g.goal_history || [])
                     .slice()
                     .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -85,12 +92,16 @@ export default function Goals() {
             setModalTarget(goal.target.toString());
             setModalAmount(goal.current.toString());
             setModalColor(goal.color);
+            setModalCurrency(goal.currency || 'COP');
+            setModalGoalType(goal.goal_type || 'compra');
             setModalNoLimit(goal.target === 0);
         } else {
             setModalTitle('');
             setModalTarget('');
             setModalAmount('');
             setModalColor('#4ade80');
+            setModalCurrency('COP');
+            setModalGoalType('compra');
             setModalNoLimit(false);
         }
         setIsModalOpen(true);
@@ -118,26 +129,24 @@ export default function Goals() {
 
         try {
             if (editingGoal) {
-                // Al editar SOLO se cambian nombre/objetivo/color. El ahorrado NO se
-                // toca aquí: viene de los movimientos del historial (modelo coherente).
                 const updatedGoal = {
                     title: modalTitle,
                     target: targetVal,
-                    color: modalColor
+                    color: modalColor,
+                    currency: modalCurrency,
+                    goal_type: modalGoalType,
                 };
                 await updateGoal(editingGoal.id, userId, updatedGoal);
-
-                setGoals(goals.map(g => g.id === editingGoal.id ? {
-                    ...g,
-                    ...updatedGoal
-                } : g));
+                setGoals(goals.map(g => g.id === editingGoal.id ? { ...g, ...updatedGoal } : g));
                 toast.success('Meta actualizada');
             } else {
                 const newGoalData = {
                     title: modalTitle,
                     target: targetVal,
                     current: currentVal,
-                    color: modalColor
+                    color: modalColor,
+                    currency: modalCurrency,
+                    goal_type: modalGoalType,
                 };
                 const createdGoal = await createGoal(userId, newGoalData);
 
@@ -294,11 +303,42 @@ export default function Goals() {
                                     />
                                 </div>
 
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs uppercase font-bold text-text-muted mb-1 block">Moneda</label>
+                                        <div className="relative">
+                                            <select
+                                                value={modalCurrency}
+                                                onChange={(e) => setModalCurrency(e.target.value)}
+                                                className="appearance-none w-full bg-black/50 border border-white/10 rounded-xl px-3 py-3 pr-8 text-sm text-white focus:border-acid focus:outline-none cursor-pointer"
+                                            >
+                                                <option value="COP">{'\u{1F1E8}\u{1F1F4}'} COP</option>
+                                                <option value="EUR">{'\u{1F1EA}\u{1F1FA}'} EUR</option>
+                                                <option value="USD">{'\u{1F1FA}\u{1F1F8}'} USD</option>
+                                            </select>
+                                            <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-text-muted" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs uppercase font-bold text-text-muted mb-1 block">Tipo</label>
+                                        <div className="flex gap-1 bg-black/50 border border-white/10 rounded-xl p-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setModalGoalType('compra')}
+                                                className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${modalGoalType === 'compra' ? 'bg-acid text-black' : 'text-text-muted hover:text-white'}`}
+                                            >Compra</button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setModalGoalType('ahorro')}
+                                                className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${modalGoalType === 'ahorro' ? 'bg-acid text-black' : 'text-text-muted hover:text-white'}`}
+                                            >Ahorro</button>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className={editingGoal ? '' : 'grid grid-cols-2 gap-4'}>
                                     <div>
-                                        <label className="text-xs uppercase font-bold text-text-muted mb-1 block">
-                                            Meta Total
-                                        </label>
+                                        <label className="text-xs uppercase font-bold text-text-muted mb-1 block">Meta Total</label>
                                         <div className="relative">
                                             <input
                                                 type="text"
@@ -360,12 +400,17 @@ const GoalCard = ({ goal, onEdit, onTransaction, onDelete, onDeleteMovement }) =
     const [showHistory, setShowHistory] = useState(false);
 
     const noLimit = goal.target === 0;
+    const currency = goal.currency || 'COP';
+    const goalType = goal.goal_type || 'compra';
     const progress = noLimit ? 0 : Math.min(100, (goal.current / goal.target) * 100);
 
     const customStyle = {
         '--goal-color': goal.color,
         borderColor: `${goal.color}33`,
     };
+
+    const CURRENCY_SYMBOLS = { COP: '$', EUR: '€', USD: 'US$' };
+    const CURRENCY_FLAGS = { COP: '\u{1F1E8}\u{1F1F4}', EUR: '\u{1F1EA}\u{1F1FA}', USD: '\u{1F1FA}\u{1F1F8}' };
 
     const handleAction = (type) => {
         const val = parseInt(amountInput.replace(/\D/g, '')) || 0;
@@ -411,17 +456,22 @@ const GoalCard = ({ goal, onEdit, onTransaction, onDelete, onDeleteMovement }) =
                     </div>
                     <div>
                         <h3 className="text-xl font-bold text-white leading-tight">{goal.title}</h3>
+                        <p className="text-xs text-text-muted mt-0.5">
+                            <span>{CURRENCY_FLAGS[currency]} {CURRENCY_SYMBOLS[currency]}</span>
+                            <span className="mx-1.5 text-text-muted/30">·</span>
+                            <span>{goalType === 'ahorro' ? 'Ahorro' : 'Compra'}</span>
+                        </p>
                         {noLimit ? (
                             <p className="text-sm text-text-muted/50 mt-1 italic">Sin límite</p>
                         ) : (
-                            <p className="text-sm text-text-muted mt-1 font-mono">{formatMoney(goal.target)}</p>
+                            <p className="text-sm text-text-muted mt-1 font-mono">{formatMoney(goal.target, currency)}</p>
                         )}
                     </div>
                 </div>
 
                 {noLimit ? (
                     <div className="flex justify-between items-center mb-3 mt-3 px-1">
-                        <span className="text-white font-mono font-bold text-lg">{formatMoney(goal.current)}</span>
+                        <span className="text-white font-mono font-bold text-lg">{formatMoney(goal.current, currency)}</span>
                         <span className="text-xs text-text-muted/50 italic">Acumulado</span>
                     </div>
                 ) : (
@@ -442,7 +492,7 @@ const GoalCard = ({ goal, onEdit, onTransaction, onDelete, onDeleteMovement }) =
                         </div>
 
                         <div className="flex justify-between items-center mb-3 px-1">
-                            <span className="text-white font-mono font-bold text-lg">{formatMoney(goal.current)}</span>
+                            <span className="text-white font-mono font-bold text-lg">{formatMoney(goal.current, currency)}</span>
                             <span className="text-2xl font-bold" style={{ color: goal.color }}>{Math.round(progress)}%</span>
                         </div>
                     </>
@@ -497,7 +547,7 @@ const GoalCard = ({ goal, onEdit, onTransaction, onDelete, onDeleteMovement }) =
                                                 </div>
                                                 <div className="flex items-center gap-2 shrink-0">
                                                     <span className={h.type === 'add' ? 'text-green-400' : 'text-red-400'}>
-                                                        {h.type === 'add' ? '+' : '-'}{formatMoney(h.amount)}
+                                                        {h.type === 'add' ? '+' : '-'}{formatMoney(h.amount, currency)}
                                                     </span>
                                                     <button
                                                         onClick={() => onDeleteMovement(goal.id, h)}
