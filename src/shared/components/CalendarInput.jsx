@@ -146,8 +146,8 @@ export default function CalendarInput({ value, onChange, placeholder = 'Ene 15' 
             </div>
 
             <div className="grid grid-cols-7 gap-1 text-center">
-                {DAYS.map(d => (
-                    <div key={d} className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 py-1">{d}</div>
+                {DAYS.map((d, i) => (
+                    <div key={i} className="text-[10px] font-bold text-[var(--text-muted)] opacity-60 py-1">{d}</div>
                 ))}
                 {Array.from({ length: firstDay }).map((_, i) => (
                     <div key={`empty-${i}`} />
